@@ -108,62 +108,6 @@ exec /usr/sbin/holden-agent "$@"
 EOF
 chmod 755 %{buildroot}%{_sbindir}/holden-agent-wrapper
 
-# Create manual pages
-cat > %{buildroot}%{_mandir}/man1/holden-controller.1 << 'EOF'
-.TH HOLDEN-CONTROLLER 1 "2025-01-01" "1.0.0" "Holden"
-.SH NAME
-holden-controller \- Holden process orchestration controller
-.SH SYNOPSIS
-.B holden-controller
-.I command
-.RI [ args... ]
-.SH DESCRIPTION
-The holden-controller provides a command-line interface for managing
-processes through the holden-agent daemon. Named after 19th century
-puppeteer Joseph Holden, it provides precise control over process lifecycles.
-.SH COMMANDS
-.TP
-.B start <name> [args...]
-Start a new process with the given name and arguments
-.TP
-.B list
-List all running processes
-.TP
-.B stop <pid>
-Stop the process with the specified PID
-.TP
-.B constrain <pid> <memory_mb> <cpu_percent>
-Apply resource constraints to a process
-.TP
-.B monitor
-Show monitored processes with uptime
-.SH SEE ALSO
-.BR holden-agent (8),
-.BR holden-monitor (1)
-EOF
-
-cat > %{buildroot}%{_mandir}/man8/holden-agent.8 << 'EOF'
-.TH HOLDEN-AGENT 8 "2025-01-01" "1.0.0" "Holden"
-.SH NAME
-holden-agent \- Holden process orchestration agent daemon
-.SH SYNOPSIS
-.B holden-agent
-.SH DESCRIPTION
-The holden-agent is a daemon that manages processes according to
-commands received from holden-controller clients via Unix domain sockets.
-Part of the Holden process orchestration system, named after the 19th
-century puppeteer Joseph Holden.
-.SH FILES
-.TP
-.I /etc/holden/agent.conf
-Agent configuration file
-.TP
-.I /tmp/holden_orchestrator.sock
-Default Unix domain socket for communication
-.SH SEE ALSO
-.BR holden-controller (1),
-.BR systemctl (1)
-EOF
 
 %files
 %license %{_docdir}/%{name}/LICENSE
