@@ -74,6 +74,11 @@ install: all
 	install -m 644 config/agent.conf $(SYSCONFDIR_INSTALL)/
 	install -m 755 config/holden-agent-wrapper $(SBINDIR_INSTALL)/
 
+install-sysusers: install
+	# Install sysusers configuration
+	install -d $(DESTDIR)/usr/lib/sysusers.d
+	install -m 644 config/holden.sysusers $(DESTDIR)/usr/lib/sysusers.d/holden.conf
+
 	# Install manual pages (if they exist)
 	@if [ -f holden-controller.1 ]; then \
 		install -m 644 holden-controller.1 $(MANDIR_INSTALL)/man1/; \

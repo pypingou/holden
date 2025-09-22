@@ -1,5 +1,5 @@
 Name:           holden
-Version:        1.0.0
+Version:        0.1
 Release:        1%{?dist}
 Summary:        High-performance process orchestration system
 
@@ -21,7 +21,7 @@ monitoring, and cgroups v2 resource constraints.
 %package agent
 Summary:        Holden process orchestration agent daemon
 Requires:       systemd
-Requires(pre):  shadow-utils
+%{?sysusers_requires_compat}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
@@ -60,9 +60,13 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix}
 install -d %{buildroot}%{_unitdir}
 install -d %{buildroot}%{_localstatedir}/lib/%{name}
 install -d %{buildroot}%{_localstatedir}/run/%{name}
+install -d %{buildroot}%{_sysusersdir}
 
 # Install systemd service
 install -m 644 holden-agent.service %{buildroot}%{_unitdir}/
+
+# Install sysusers configuration
+install -m 644 config/holden.sysusers %{buildroot}%{_sysusersdir}/holden.conf
 
 
 
@@ -78,6 +82,7 @@ install -m 644 holden-agent.service %{buildroot}%{_unitdir}/
 %{_sbindir}/holden-agent
 %{_sbindir}/holden-agent-wrapper
 %{_unitdir}/holden-agent.service
+%{_sysusersdir}/holden.conf
 %config(noreplace) %{_sysconfdir}/%{name}/agent.conf
 %attr(755,holden,holden) %dir %{_localstatedir}/lib/%{name}
 %attr(755,holden,holden) %dir %{_localstatedir}/run/%{name}
@@ -86,11 +91,7 @@ install -m 644 holden-agent.service %{buildroot}%{_unitdir}/
 %{_includedir}/%{name}/
 
 %pre agent
-# Create holden user and group
-getent group holden >/dev/null || groupadd -r holden
-getent passwd holden >/dev/null || \
-    useradd -r -g holden -d %{_localstatedir}/lib/%{name} \
-    -s /sbin/nologin -c "Holden Process Orchestration Agent" holden
+%sysusers_create_compat %{_sysusersdir}/holden.conf
 
 %post agent
 %systemd_post holden-agent.service
@@ -100,14 +101,9 @@ getent passwd holden >/dev/null || \
 
 %postun agent
 %systemd_postun_with_restart holden-agent.service
-if [ $1 -eq 0 ] ; then
-    # Remove user and group on final uninstall
-    userdel holden >/dev/null 2>&1 || :
-    groupdel holden >/dev/null 2>&1 || :
-fi
 
 %changelog
-* Wed Jan 01 2025 Holden Team <team@example.com> - 1.0.0-1
+* Mon Sep 22 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-1
 - Initial RPM package for Holden process orchestration system
 - Named after 19th century puppeteer Joseph Holden
 - Split agent into separate subpackage with dedicated user/group
