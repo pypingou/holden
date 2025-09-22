@@ -1,15 +1,15 @@
-Name:           holden
-Version:        0.1
-Release:        1%{?dist}
-Summary:        High-performance process orchestration system
+Name:             holden
+Version:          0.1
+Release:          1%{?dist}
+Summary:          High-performance process orchestration system
 
-License:        MIT
-URL:            https://github.com/example/holden
-Source0:        %{name}-%{version}.tar.gz
+License:          MIT
+URL:              https://github.com/example/holden
+Source0:          %{name}-%{version}.tar.gz
 
-BuildRequires:  gcc
-BuildRequires:  make
-BuildRequires:  systemd-rpm-macros
+BuildRequires:    gcc
+BuildRequires:    make
+BuildRequires:    systemd-rpm-macros
 
 %description
 Holden is a high-performance process orchestration application written in C,
@@ -19,11 +19,11 @@ over process lifecycles. Supports Unix domain socket communication, real-time
 monitoring, and cgroups v2 resource constraints.
 
 %package agent
-Summary:        Holden process orchestration agent daemon
-Requires:       systemd
+Summary:          Holden process orchestration agent daemon
+Requires:         systemd
 %{?sysusers_requires_compat}
-Requires(post): systemd
-Requires(preun): systemd
+Requires(post):   systemd
+Requires(preun):  systemd
 Requires(postun): systemd
 
 %description agent
@@ -33,8 +33,8 @@ commands. Supports process lifecycle management, resource constraints via
 cgroups v2, and real-time monitoring.
 
 %package devel
-Summary:        Development files for %{name}
-Requires:       %{name} = %{version}-%{release}
+Summary:          Development files for %{name}
+Requires:         %{name} = %{version}-%{release}
 
 %description devel
 Development files and headers for the Holden process orchestration system.
@@ -46,11 +46,6 @@ applications that integrate with Holden's process management capabilities.
 
 %build
 make %{?_smp_mflags} CFLAGS="%{optflags}" LDFLAGS="%{?__global_ldflags}"
-
-%check
-# Run quick test to verify basic functionality
-make all
-sh ./test_quick.sh || echo "Tests require agent to be running"
 
 %install
 # Use Makefile install target with proper DESTDIR
@@ -68,7 +63,22 @@ install -m 644 holden-agent.service %{buildroot}%{_unitdir}/
 # Install sysusers configuration
 install -m 644 config/holden.sysusers %{buildroot}%{_sysusersdir}/holden.conf
 
+%check
+# Run quick test to verify basic functionality
+make all
+sh ./test_quick.sh || echo "Tests require agent to be running"
 
+%pre agent
+%sysusers_create_compat %{_sysusersdir}/holden.conf
+
+%post agent
+%systemd_post holden-agent.service
+
+%preun agent
+%systemd_preun holden-agent.service
+
+%postun agent
+%systemd_postun_with_restart holden-agent.service
 
 %files
 %license %{_docdir}/%{name}/LICENSE
@@ -89,18 +99,6 @@ install -m 644 config/holden.sysusers %{buildroot}%{_sysusersdir}/holden.conf
 
 %files devel
 %{_includedir}/%{name}/
-
-%pre agent
-%sysusers_create_compat %{_sysusersdir}/holden.conf
-
-%post agent
-%systemd_post holden-agent.service
-
-%preun agent
-%systemd_preun holden-agent.service
-
-%postun agent
-%systemd_postun_with_restart holden-agent.service
 
 %changelog
 * Mon Sep 22 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-1
