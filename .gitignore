@@ -1,0 +1,50 @@
+# Build artifacts
+bin/
+obj/
+*.o
+*.a
+*.so
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp
+
+# Core dumps and debug files
+core
+core.*
+vgcore.*
+*.debug
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Socket files
+*.sock
+/tmp/process_orchestrator.sock
+
+# Test artifacts
+/tmp/memory_test.py
+/tmp/cpu_test.sh
+
+# Log files
+*.log
+
+# Process files
+*.pid
+
+# Backup files
+*.bak
+*.backup
+
+# Generated documentation
+docs/html/
+docs/latex/
