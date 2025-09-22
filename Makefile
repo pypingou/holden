@@ -48,9 +48,11 @@ dist: clean
 	@# Copy source files using git archive for clean packaging
 	@if [ -d .git ]; then \
 		git archive --format=tar HEAD | tar -xf - -C /tmp/$(PACKAGE_NAME)-$(VERSION); \
+		cd /tmp/$(PACKAGE_NAME)-$(VERSION) && rm -f claude.prompt && rm -rf .claude/; \
 	else \
 		tar --exclude='bin/' --exclude='obj/' --exclude='.git*' \
 			--exclude='*.rpm' --exclude='*.tar.gz' --exclude='.claude*' \
+			--exclude='claude.prompt' --exclude='*claude*' \
 			-cf - . | tar -xf - -C /tmp/$(PACKAGE_NAME)-$(VERSION); \
 	fi
 	@# Create tarball
