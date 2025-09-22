@@ -89,8 +89,8 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 
 %files agent
 %license %{_docdir}/%{name}/LICENSE
-%{_sbindir}/holden-agent
-%{_sbindir}/holden-agent-wrapper
+%{_libexecdir}/holden-agent
+%{_libexecdir}/holden-agent-wrapper
 %{_unitdir}/holden-agent.service
 %{_sysusersdir}/holden.conf
 %config(noreplace) %{_sysconfdir}/%{name}/agent.conf
