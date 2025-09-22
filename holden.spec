@@ -64,49 +64,6 @@ install -d %{buildroot}%{_localstatedir}/run/%{name}
 # Install systemd service
 install -m 644 holden-agent.service %{buildroot}%{_unitdir}/
 
-# Create default configuration
-cat > %{buildroot}%{_sysconfdir}/%{name}/agent.conf << 'EOF'
-# Holden Agent Configuration
-
-# Socket path for agent communication
-SOCKET_PATH=/tmp/holden_orchestrator.sock
-
-# Maximum number of processes to manage
-MAX_PROCESSES=64
-
-# Enable cgroups constraints (requires root)
-ENABLE_CGROUPS=true
-
-# cgroups base path
-CGROUP_BASE=/sys/fs/cgroup/holden
-
-# Log level (debug, info, warn, error)
-LOG_LEVEL=info
-EOF
-
-# Create wrapper script with configuration loading
-cat > %{buildroot}%{_sbindir}/holden-agent-wrapper << 'EOF'
-#!/bin/bash
-# Wrapper script for holden-agent with configuration
-
-CONFIG_FILE="/etc/holden/agent.conf"
-
-# Source configuration if it exists
-if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE"
-fi
-
-# Export environment variables
-export SOCKET_PATH="${SOCKET_PATH:-/tmp/holden_orchestrator.sock}"
-export MAX_PROCESSES="${MAX_PROCESSES:-64}"
-export ENABLE_CGROUPS="${ENABLE_CGROUPS:-true}"
-export CGROUP_BASE="${CGROUP_BASE:-/sys/fs/cgroup/holden}"
-export LOG_LEVEL="${LOG_LEVEL:-info}"
-
-# Start the agent
-exec /usr/sbin/holden-agent "$@"
-EOF
-chmod 755 %{buildroot}%{_sbindir}/holden-agent-wrapper
 
 
 %files

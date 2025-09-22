@@ -70,6 +70,10 @@ install: all
 	install -m 644 TESTING.md $(DOCDIR_INSTALL)/
 	install -m 644 LICENSE $(DOCDIR_INSTALL)/
 
+	# Install configuration files
+	install -m 644 config/agent.conf $(SYSCONFDIR_INSTALL)/
+	install -m 755 config/holden-agent-wrapper $(SBINDIR_INSTALL)/
+
 	# Install manual pages (if they exist)
 	@if [ -f holden-controller.1 ]; then \
 		install -m 644 holden-controller.1 $(MANDIR_INSTALL)/man1/; \

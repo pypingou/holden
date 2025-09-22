@@ -30,7 +30,7 @@ Thumbs.db
 
 # Socket files
 *.sock
-/tmp/process_orchestrator.sock
+/tmp/holden_orchestrator.sock
 
 # Test artifacts
 /tmp/memory_test.py
