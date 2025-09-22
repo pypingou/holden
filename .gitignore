@@ -49,3 +49,8 @@ Thumbs.db
 # Generated documentation
 docs/html/
 docs/latex/
+
+# RPM build artifacts
+*.rpm
+*.tar.gz
+*.src.rpm

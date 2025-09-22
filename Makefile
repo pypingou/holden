@@ -11,7 +11,7 @@ OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
 
 TARGETS = $(BINDIR)/agent $(BINDIR)/controller $(BINDIR)/monitor
 
-.PHONY: all clean install
+.PHONY: all clean install rpm srpm
 
 all: $(TARGETS)
 
@@ -42,6 +42,20 @@ install: all
 	install -m 755 $(BINDIR)/controller /usr/local/bin/orchestrator-controller
 	install -m 755 $(BINDIR)/monitor /usr/local/bin/orchestrator-monitor
 
+rpm: all
+	@echo "Building RPM packages..."
+	./build-rpm.sh
+
+srpm:
+	@echo "Building source RPM package..."
+	rpmdev-setuptree
+	tar --transform 's,^,process-orchestrator-1.0.0/,' \
+		--exclude='bin/' --exclude='obj/' --exclude='.git/' \
+		--exclude='*.rpm' --exclude='*.tar.gz' \
+		-czf ~/rpmbuild/SOURCES/process-orchestrator-1.0.0.tar.gz *
+	cp process-orchestrator.spec ~/rpmbuild/SPECS/
+	rpmbuild -bs ~/rpmbuild/SPECS/process-orchestrator.spec
+
 help:
 	@echo "Process Orchestration System"
 	@echo "============================"
@@ -50,12 +64,19 @@ help:
 	@echo "  all       - Build all components"
 	@echo "  clean     - Clean build artifacts"
 	@echo "  install   - Install binaries to /usr/local/bin"
+	@echo "  rpm       - Build RPM packages (requires rpmbuild)"
+	@echo "  srpm      - Build source RPM package only"
 	@echo "  help      - Show this help message"
 	@echo
 	@echo "Components:"
 	@echo "  agent     - Process agent (runs in container)"
 	@echo "  controller- Main controller"
 	@echo "  monitor   - Process monitor utility"
+	@echo
+	@echo "RPM Packages:"
+	@echo "  process-orchestrator       - Controller and monitor"
+	@echo "  process-orchestrator-agent - Agent daemon with systemd"
+	@echo "  process-orchestrator-devel - Development headers"
 	@echo
 	@echo "Usage after build:"
 	@echo "  ./bin/agent                          # Start agent"
