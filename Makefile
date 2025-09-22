@@ -124,9 +124,12 @@ rpm: all
 
 srpm: dist
 	@echo "Building source RPM package..."
-	rpmdev-setuptree
+	@# Ensure rpmbuild directory structure exists
+	@mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+	@# Copy files to rpmbuild directories
 	cp $(TARBALL) ~/rpmbuild/SOURCES/
 	cp holden.spec ~/rpmbuild/SPECS/
+	@# Build source RPM
 	rpmbuild -bs ~/rpmbuild/SPECS/holden.spec
 
 help:

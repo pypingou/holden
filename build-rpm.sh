@@ -26,7 +26,7 @@ fi
 
 # Setup RPM build environment
 echo -e "${BLUE}Setting up RPM build environment...${NC}"
-rpmdev-setuptree
+mkdir -p "$HOME/rpmbuild"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
 # Create source tarball using Makefile
 echo -e "${BLUE}Creating source tarball...${NC}"
