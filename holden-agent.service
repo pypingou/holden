@@ -1,0 +1,30 @@
+[Unit]
+Description=Holden Process Orchestration Agent
+Documentation=man:holden-agent(8)
+After=network.target
+
+[Service]
+Type=simple
+User=holden
+Group=holden
+ExecStart=/usr/sbin/holden-agent
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp /var/lib/holden /var/run/holden /sys/fs/cgroup
+PrivateDevices=true
+ProtectKernelTunables=false
+ProtectKernelModules=true
+ProtectControlGroups=false
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

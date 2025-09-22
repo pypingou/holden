@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-PACKAGE_NAME="process-orchestrator"
+PACKAGE_NAME="holden"
 VERSION="1.0.0"
 RELEASE="1"
 
@@ -50,7 +50,7 @@ rm -rf "$TEMP_DIR"
 echo -e "${GREEN}✓ Source tarball created${NC}"
 
 # Copy spec file
-cp process-orchestrator.spec "$HOME/rpmbuild/SPECS/"
+cp holden.spec "$HOME/rpmbuild/SPECS/"
 
 # Build RPM
 echo -e "${BLUE}Building RPM packages...${NC}"
@@ -58,11 +58,11 @@ cd "$HOME/rpmbuild"
 
 # Build source RPM
 echo -e "${YELLOW}Building SRPM...${NC}"
-rpmbuild -bs SPECS/process-orchestrator.spec
+rpmbuild -bs SPECS/holden.spec
 
 # Build binary RPMs
 echo -e "${YELLOW}Building binary RPMs...${NC}"
-rpmbuild -bb SPECS/process-orchestrator.spec
+rpmbuild -bb SPECS/holden.spec
 
 echo -e "${GREEN}✓ RPM build completed successfully!${NC}"
 echo
@@ -77,12 +77,12 @@ echo "Source RPM:  $HOME/rpmbuild/SRPMS/"
 
 echo
 echo -e "${BLUE}Installation commands:${NC}"
-echo "Main package:   sudo dnf install ~/rpmbuild/RPMS/x86_64/process-orchestrator-$VERSION-$RELEASE.*.rpm"
-echo "Agent package:  sudo dnf install ~/rpmbuild/RPMS/x86_64/process-orchestrator-agent-$VERSION-$RELEASE.*.rpm"
-echo "Devel package:  sudo dnf install ~/rpmbuild/RPMS/x86_64/process-orchestrator-devel-$VERSION-$RELEASE.*.rpm"
+echo "Main package:   sudo dnf install ~/rpmbuild/RPMS/x86_64/holden-$VERSION-$RELEASE.*.rpm"
+echo "Agent package:  sudo dnf install ~/rpmbuild/RPMS/x86_64/holden-agent-$VERSION-$RELEASE.*.rpm"
+echo "Devel package:  sudo dnf install ~/rpmbuild/RPMS/x86_64/holden-devel-$VERSION-$RELEASE.*.rpm"
 
 echo
 echo -e "${BLUE}Testing installation:${NC}"
 echo "1. Install packages with dnf"
-echo "2. Start agent: sudo systemctl start orchestrator-agent"
-echo "3. Test controller: orchestrator-controller list"
+echo "2. Start agent: sudo systemctl start holden-agent"
+echo "3. Test controller: holden-controller list"
