@@ -89,16 +89,16 @@ VOLUME ["/tmp"]
 CMD ["/usr/local/bin/agent"]
 ```
 
-### Running with Docker
+### Running with Podman
 
 ```bash
 # Build and run agent container
-docker build -t orchestrator-agent .
-docker run -d --name agent \
+podman build -t holden-agent .
+podman run -d --name holden-agent \
   --privileged \
   -v /tmp:/tmp \
   -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-  orchestrator-agent
+  holden-agent
 
 # Use controller from host
 ./bin/controller start sleep 30
