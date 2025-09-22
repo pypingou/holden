@@ -124,7 +124,13 @@ rpm: all
 
 srpm: dist
 	@echo "Building source RPM package..."
-	rpmbuild -ts $(TARBALL)
+	@# Copy tarball to avoid rpmbuild extracting in current directory
+	@cp $(TARBALL) /tmp/
+	@rpmbuild -ts /tmp/$(TARBALL)
+	@# Move SRPM back to current directory if it was created elsewhere
+	@if ls ~/rpmbuild/SRPMS/$(PACKAGE_NAME)-$(VERSION)-*.src.rpm >/dev/null 2>&1; then \
+		mv ~/rpmbuild/SRPMS/$(PACKAGE_NAME)-$(VERSION)-*.src.rpm . 2>/dev/null || true; \
+	fi
 
 help:
 	@echo "Holden Process Orchestration System"
