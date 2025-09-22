@@ -124,13 +124,14 @@ rpm: all
 
 srpm: dist
 	@echo "Building source RPM package..."
-	@# Copy tarball to avoid rpmbuild extracting in current directory
-	@cp $(TARBALL) /tmp/
-	@rpmbuild -ts /tmp/$(TARBALL)
-	@# Move SRPM back to current directory if it was created elsewhere
-	@if ls ~/rpmbuild/SRPMS/$(PACKAGE_NAME)-$(VERSION)-*.src.rpm >/dev/null 2>&1; then \
-		mv ~/rpmbuild/SRPMS/$(PACKAGE_NAME)-$(VERSION)-*.src.rpm . 2>/dev/null || true; \
-	fi
+	@# Build from a temporary directory to avoid file conflicts
+	@TEMP_DIR=$$(mktemp -d) && \
+	cd "$$TEMP_DIR" && \
+	cp "$(CURDIR)/$(TARBALL)" . && \
+	tar -xzf "$(TARBALL)" && \
+	rpmbuild --define "_sourcedir $$TEMP_DIR" --define "_srcrpmdir $(CURDIR)" -bs "$(PACKAGE_NAME)-$(VERSION)/holden.spec" && \
+	cd "$(CURDIR)" && \
+	rm -rf "$$TEMP_DIR"
 
 help:
 	@echo "Holden Process Orchestration System"
