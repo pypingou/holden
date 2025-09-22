@@ -11,7 +11,7 @@ OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
 
 TARGETS = $(BINDIR)/agent $(BINDIR)/controller $(BINDIR)/monitor
 
-.PHONY: all clean install rpm srpm
+.PHONY: all clean install rpm srpm dist
 
 all: $(TARGETS)
 
@@ -35,6 +35,30 @@ $(BINDIR)/monitor: $(SRCDIR)/monitor.c $(OBJECTS) | $(BINDIR)
 
 clean:
 	rm -rf $(OBJDIR) $(BINDIR)
+
+# Package version information
+PACKAGE_NAME = holden
+VERSION = 0.1
+TARBALL = $(PACKAGE_NAME)-$(VERSION).tar.gz
+
+dist: clean
+	@echo "Creating source tarball $(TARBALL)..."
+	@# Create temporary directory for tarball contents
+	@mkdir -p /tmp/$(PACKAGE_NAME)-$(VERSION)
+	@# Copy source files using git archive for clean packaging
+	@if [ -d .git ]; then \
+		git archive --format=tar HEAD | tar -xf - -C /tmp/$(PACKAGE_NAME)-$(VERSION); \
+	else \
+		tar --exclude='bin/' --exclude='obj/' --exclude='.git*' \
+			--exclude='*.rpm' --exclude='*.tar.gz' --exclude='.claude*' \
+			-cf - . | tar -xf - -C /tmp/$(PACKAGE_NAME)-$(VERSION); \
+	fi
+	@# Create tarball
+	@cd /tmp && tar -czf $(CURDIR)/$(TARBALL) $(PACKAGE_NAME)-$(VERSION)
+	@# Cleanup
+	@rm -rf /tmp/$(PACKAGE_NAME)-$(VERSION)
+	@echo "Created $(TARBALL)"
+	@ls -lh $(TARBALL)
 
 # Installation directories
 PREFIX ?= /usr/local
@@ -96,13 +120,10 @@ rpm: all
 	@echo "Building RPM packages..."
 	./build-rpm.sh
 
-srpm:
+srpm: dist
 	@echo "Building source RPM package..."
 	rpmdev-setuptree
-	tar --transform 's,^,holden-1.0.0/,' \
-		--exclude='bin/' --exclude='obj/' --exclude='.git/' \
-		--exclude='*.rpm' --exclude='*.tar.gz' \
-		-czf ~/rpmbuild/SOURCES/holden-1.0.0.tar.gz *
+	cp $(TARBALL) ~/rpmbuild/SOURCES/
 	cp holden.spec ~/rpmbuild/SPECS/
 	rpmbuild -bs ~/rpmbuild/SPECS/holden.spec
 
@@ -115,6 +136,7 @@ help:
 	@echo "  all       - Build all components"
 	@echo "  clean     - Clean build artifacts"
 	@echo "  install   - Install binaries to /usr/local/bin"
+	@echo "  dist      - Create source tarball for distribution"
 	@echo "  rpm       - Build RPM packages (requires rpmbuild)"
 	@echo "  srpm      - Build source RPM package only"
 	@echo "  help      - Show this help message"

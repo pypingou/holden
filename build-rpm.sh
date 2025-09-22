@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 PACKAGE_NAME="holden"
-VERSION="1.0.0"
+VERSION="0.1"
 RELEASE="1"
 
 # Colors
@@ -28,24 +28,12 @@ fi
 echo -e "${BLUE}Setting up RPM build environment...${NC}"
 rpmdev-setuptree
 
-# Create source tarball
+# Create source tarball using Makefile
 echo -e "${BLUE}Creating source tarball...${NC}"
-TEMP_DIR=$(mktemp -d)
-SOURCE_DIR="$TEMP_DIR/$PACKAGE_NAME-$VERSION"
-mkdir -p "$SOURCE_DIR"
+make dist
 
-# Copy source files (exclude build artifacts and git)
-rsync -av --exclude='bin/' --exclude='obj/' --exclude='.git/' \
-    --exclude='*.rpm' --exclude='*.tar.gz' \
-    ./ "$SOURCE_DIR/"
-
-# Create tarball
-cd "$TEMP_DIR"
-tar -czf "$HOME/rpmbuild/SOURCES/$PACKAGE_NAME-$VERSION.tar.gz" \
-    "$PACKAGE_NAME-$VERSION"
-
-cd - >/dev/null
-rm -rf "$TEMP_DIR"
+# Copy tarball to rpmbuild SOURCES
+cp "$PACKAGE_NAME-$VERSION.tar.gz" "$HOME/rpmbuild/SOURCES/"
 
 echo -e "${GREEN}✓ Source tarball created${NC}"
 
