@@ -1,0 +1,277 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include "protocol.h"
+#include "cgroups.h"
+
+#define MAX_PROCESSES 64
+
+typedef struct {
+    pid_t pid;
+    char name[MAX_PROCESS_NAME];
+    int active;
+} process_info_t;
+
+static process_info_t processes[MAX_PROCESSES];
+static int process_count = 0;
+
+void add_process(pid_t pid, const char *name) {
+    if (process_count < MAX_PROCESSES) {
+        processes[process_count].pid = pid;
+        strncpy(processes[process_count].name, name, MAX_PROCESS_NAME - 1);
+        processes[process_count].name[MAX_PROCESS_NAME - 1] = '\0';
+        processes[process_count].active = 1;
+        process_count++;
+    }
+}
+
+void remove_process(pid_t pid) {
+    for (int i = 0; i < process_count; i++) {
+        if (processes[i].pid == pid && processes[i].active) {
+            processes[i].active = 0;
+            break;
+        }
+    }
+}
+
+process_info_t* find_process(pid_t pid) {
+    for (int i = 0; i < process_count; i++) {
+        if (processes[i].pid == pid && processes[i].active) {
+            return &processes[i];
+        }
+    }
+    return NULL;
+}
+
+int start_process(const start_process_msg_t *req, message_t *response) {
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to fork: %s", strerror(errno));
+        return 0;
+    }
+
+    if (pid == 0) {
+        char *args[MAX_ARGS + 2];
+        args[0] = (char*)req->name;
+
+        for (int i = 0; i < req->arg_count && i < MAX_ARGS; i++) {
+            args[i + 1] = (char*)req->args[i];
+        }
+        args[req->arg_count + 1] = NULL;
+
+        execvp(req->name, args);
+        fprintf(stderr, "Failed to exec %s: %s\n", req->name, strerror(errno));
+        exit(1);
+    }
+
+    add_process(pid, req->name);
+
+    response->header.type = MSG_PROCESS_STARTED;
+    response->header.length = sizeof(process_started_msg_t);
+    response->data.process_started.pid = pid;
+
+    return 0;
+}
+
+int stop_process(const stop_process_msg_t *req, message_t *response) {
+    process_info_t *proc = find_process(req->pid);
+
+    if (!proc) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Process %d not found", req->pid);
+        return 0;
+    }
+
+    if (kill(req->pid, SIGTERM) == -1) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to kill process %d: %s", req->pid, strerror(errno));
+        return 0;
+    }
+
+    remove_process(req->pid);
+
+    response->header.type = MSG_PROCESS_STOPPED;
+    response->header.length = sizeof(process_stopped_msg_t);
+    response->data.process_stopped.pid = req->pid;
+
+    return 0;
+}
+
+int list_processes(message_t *response) {
+    response->header.type = MSG_PROCESS_LIST;
+    response->header.length = sizeof(process_list_msg_t);
+
+    int active_count = 0;
+    for (int i = 0; i < process_count && active_count < 64; i++) {
+        if (processes[i].active) {
+            int status;
+            if (waitpid(processes[i].pid, &status, WNOHANG) == 0) {
+                response->data.process_list.processes[active_count].pid = processes[i].pid;
+                strncpy(response->data.process_list.processes[active_count].name,
+                       processes[i].name, MAX_PROCESS_NAME - 1);
+                response->data.process_list.processes[active_count].name[MAX_PROCESS_NAME - 1] = '\0';
+                active_count++;
+            } else {
+                processes[i].active = 0;
+            }
+        }
+    }
+
+    response->data.process_list.count = active_count;
+    return 0;
+}
+
+int apply_constraints(const apply_constraints_msg_t *req, message_t *response) {
+    process_info_t *proc = find_process(req->pid);
+
+    if (!proc) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Process %d not found", req->pid);
+        return 0;
+    }
+
+    if (create_process_cgroup(req->pid) == -1) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to create cgroup for process %d", req->pid);
+        return 0;
+    }
+
+    if (req->memory_limit > 0 && apply_memory_limit(req->pid, req->memory_limit) == -1) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to apply memory limit to process %d", req->pid);
+        return 0;
+    }
+
+    if (req->cpu_limit > 0 && apply_cpu_limit(req->pid, req->cpu_limit) == -1) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to apply CPU limit to process %d", req->pid);
+        return 0;
+    }
+
+    response->header.type = MSG_CONSTRAINTS_APPLIED;
+    response->header.length = sizeof(constraints_applied_msg_t);
+    response->data.constraints_applied.pid = req->pid;
+
+    return 0;
+}
+
+int handle_message(int sockfd, const message_t *request) {
+    message_t response = {0};
+
+    switch (request->header.type) {
+        case MSG_START_PROCESS:
+            start_process(&request->data.start_process, &response);
+            break;
+
+        case MSG_STOP_PROCESS:
+            stop_process(&request->data.stop_process, &response);
+            break;
+
+        case MSG_LIST_PROCESSES:
+            list_processes(&response);
+            break;
+
+        case MSG_APPLY_CONSTRAINTS:
+            apply_constraints(&request->data.apply_constraints, &response);
+            break;
+
+        case MSG_PING:
+            response.header.type = MSG_PONG;
+            response.header.length = 0;
+            break;
+
+        default:
+            response.header.type = MSG_PROCESS_ERROR;
+            response.header.length = sizeof(process_error_msg_t);
+            snprintf(response.data.process_error.error, MAX_ERROR_MSG,
+                    "Unknown message type: %d", request->header.type);
+            break;
+    }
+
+    return send_message(sockfd, &response);
+}
+
+void cleanup_socket() {
+    unlink(SOCKET_PATH);
+}
+
+int main() {
+    int sockfd, clientfd;
+    struct sockaddr_un addr;
+
+    signal(SIGPIPE, SIG_IGN);
+    atexit(cleanup_socket);
+
+    if (init_cgroups() == -1) {
+        fprintf(stderr, "Warning: Failed to initialize cgroups, constraints will not work\n");
+    }
+
+    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("socket");
+        exit(1);
+    }
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, SOCKET_PATH, sizeof(addr.sun_path) - 1);
+
+    unlink(SOCKET_PATH);
+
+    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        perror("bind");
+        exit(1);
+    }
+
+    if (listen(sockfd, 5) == -1) {
+        perror("listen");
+        exit(1);
+    }
+
+    printf("Agent listening on %s\n", SOCKET_PATH);
+
+    while (1) {
+        clientfd = accept(sockfd, NULL, NULL);
+        if (clientfd == -1) {
+            perror("accept");
+            continue;
+        }
+
+        message_t request;
+        while (recv_message(clientfd, &request) == 0) {
+            if (handle_message(clientfd, &request) == -1) {
+                break;
+            }
+        }
+
+        close(clientfd);
+    }
+
+    close(sockfd);
+    return 0;
+}
