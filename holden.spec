@@ -4,7 +4,7 @@ Release:          1%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
-URL:              https://github.com/example/holden
+URL:              https://github.com/pypingou/holden
 Source0:          %{name}-%{version}.tar.gz
 
 BuildRequires:    gcc

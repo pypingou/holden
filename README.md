@@ -1,6 +1,6 @@
-# Process Orchestration System
+# Holden Process Orchestration System
 
-A high-performance process orchestration application written in C, featuring a controller-agent architecture for container-based process management.
+A high-performance process orchestration application written in C, featuring a controller-agent architecture for container-based process management. Named after the 19th century puppeteer Joseph Holden, it provides precise control over process lifecycles.
 
 ## Architecture
 
