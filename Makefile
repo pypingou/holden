@@ -65,7 +65,7 @@ dist: clean
 # Installation directories
 PREFIX ?= /usr/local
 BINDIR_INSTALL = $(DESTDIR)$(PREFIX)/bin
-SBINDIR_INSTALL = $(DESTDIR)$(PREFIX)/sbin
+LIBEXECDIR_INSTALL = $(DESTDIR)$(PREFIX)/libexec
 INCLUDEDIR_INSTALL = $(DESTDIR)$(PREFIX)/include/holden
 SYSCONFDIR_INSTALL = $(DESTDIR)/etc/holden
 UNITDIR_INSTALL = $(DESTDIR)/usr/lib/systemd/system
@@ -75,17 +75,20 @@ MANDIR_INSTALL = $(DESTDIR)$(PREFIX)/share/man
 install: all
 	# Create directories
 	install -d $(BINDIR_INSTALL)
-	install -d $(SBINDIR_INSTALL)
+	install -d $(LIBEXECDIR_INSTALL)
 	install -d $(INCLUDEDIR_INSTALL)
 	install -d $(SYSCONFDIR_INSTALL)
 	install -d $(DOCDIR_INSTALL)
 	install -d $(MANDIR_INSTALL)/man1
 	install -d $(MANDIR_INSTALL)/man8
 
-	# Install binaries
+	# Install user binaries
 	install -m 755 $(BINDIR)/controller $(BINDIR_INSTALL)/holden-controller
 	install -m 755 $(BINDIR)/monitor $(BINDIR_INSTALL)/holden-monitor
-	install -m 755 $(BINDIR)/agent $(SBINDIR_INSTALL)/holden-agent
+
+	# Install system daemons to libexec (not meant for direct user execution)
+	install -m 755 $(BINDIR)/agent $(LIBEXECDIR_INSTALL)/holden-agent
+	install -m 755 config/holden-agent-wrapper $(LIBEXECDIR_INSTALL)/
 
 	# Install headers
 	install -m 644 protocol.h $(INCLUDEDIR_INSTALL)/
@@ -98,7 +101,6 @@ install: all
 
 	# Install configuration files
 	install -m 644 config/agent.conf $(SYSCONFDIR_INSTALL)/
-	install -m 755 config/holden-agent-wrapper $(SBINDIR_INSTALL)/
 
 install-sysusers: install
 	# Install sysusers configuration
