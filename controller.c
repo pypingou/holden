@@ -20,6 +20,46 @@ typedef struct {
 static monitored_process_t monitored_processes[64];
 static int monitored_count = 0;
 
+// Function to find host PID from container PID by scanning /proc
+// This runs on the host and has access to the full proc filesystem
+pid_t find_host_pid_from_container_pid(pid_t container_pid) {
+    char path[256];
+    char buffer[1024];
+    FILE *fp;
+
+    // Scan /proc for processes that have our container PID in their NSpid
+    for (int pid = 1; pid < 65536; pid++) {
+        snprintf(path, sizeof(path), "/proc/%d/status", pid);
+        fp = fopen(path, "r");
+        if (!fp) continue;
+
+        while (fgets(buffer, sizeof(buffer), fp)) {
+            if (strncmp(buffer, "NSpid:", 6) == 0) {
+                // Parse NSpid line: "NSpid:\t<host_pid>\t<container_pid>"
+                char *token = strtok(buffer + 6, " \t\n");
+                if (!token) break;
+
+                pid_t first_pid = atoi(token);
+                token = strtok(NULL, " \t\n");
+
+                if (token && atoi(token) == container_pid) {
+                    // Found it: first_pid is host PID, token is container PID
+                    fclose(fp);
+                    return first_pid;
+                } else if (!token && first_pid == container_pid) {
+                    // No namespace separation, same PID for both
+                    fclose(fp);
+                    return first_pid;
+                }
+                break;
+            }
+        }
+        fclose(fp);
+    }
+
+    return container_pid;  // Fall back to container PID if not found
+}
+
 int connect_to_agent() {
     int sockfd;
     struct sockaddr_un addr;
@@ -106,14 +146,19 @@ int start_process_cmd(const char *name, char *args[], int arg_count) {
     }
 
     if (response.header.type == MSG_PROCESS_STARTED) {
+        // Agent returns container PID in both fields when running in container
+        // Do reverse mapping on host to find the actual host PID
+        pid_t container_pid = response.data.process_started.container_pid;
+        pid_t actual_host_pid = find_host_pid_from_container_pid(container_pid);
+
         printf("Process started successfully with Host PID: %d, Container PID: %d\n",
-               response.data.process_started.host_pid, response.data.process_started.container_pid);
-        add_monitored_process(response.data.process_started.host_pid, name);
+               actual_host_pid, container_pid);
+        add_monitored_process(actual_host_pid, name);
 
         message_t ack = {0};
         ack.header.type = MSG_ACK;
         ack.header.length = sizeof(ack_msg_t);
-        ack.data.ack.request_id = response.data.process_started.host_pid;
+        ack.data.ack.request_id = actual_host_pid;
         send_message(sockfd, &ack);
     } else if (response.header.type == MSG_PROCESS_ERROR) {
         printf("Error starting process: %s\n", response.data.process_error.error);
@@ -150,9 +195,13 @@ int list_processes_cmd() {
     if (response.header.type == MSG_PROCESS_LIST) {
         printf("Running processes (%d):\n", response.data.process_list.count);
         for (int i = 0; i < response.data.process_list.count; i++) {
+            // Agent returns container PID in both fields when running in container
+            // Do reverse mapping on host to find the actual host PID
+            pid_t container_pid = response.data.process_list.processes[i].container_pid;
+            pid_t actual_host_pid = find_host_pid_from_container_pid(container_pid);
+
             printf("  Host PID: %d, Container PID: %d, Name: %s\n",
-                   response.data.process_list.processes[i].host_pid,
-                   response.data.process_list.processes[i].container_pid,
+                   actual_host_pid, container_pid,
                    response.data.process_list.processes[i].name);
         }
     }
@@ -289,9 +338,13 @@ void show_monitored_processes() {
     if (response.header.type == MSG_PROCESS_LIST) {
         printf("Monitored processes (%d):\n", response.data.process_list.count);
         for (int i = 0; i < response.data.process_list.count; i++) {
+            // Agent returns container PID in both fields when running in container
+            // Do reverse mapping on host to find the actual host PID
+            pid_t container_pid = response.data.process_list.processes[i].container_pid;
+            pid_t actual_host_pid = find_host_pid_from_container_pid(container_pid);
+
             printf("  Host PID: %d, Container PID: %d, Name: %s\n",
-                   response.data.process_list.processes[i].host_pid,
-                   response.data.process_list.processes[i].container_pid,
+                   actual_host_pid, container_pid,
                    response.data.process_list.processes[i].name);
         }
     } else {
