@@ -26,6 +26,7 @@ pid_t find_host_pid_from_container_pid(pid_t container_pid) {
     char path[256];
     char buffer[1024];
     FILE *fp;
+    pid_t fallback_pid = container_pid;  // Track single PID match as fallback
 
     // Scan /proc for processes that have our container PID in their NSpid
     for (int pid = 1; pid < 65536; pid++) {
@@ -43,13 +44,14 @@ pid_t find_host_pid_from_container_pid(pid_t container_pid) {
                 token = strtok(NULL, " \t\n");
 
                 if (token && atoi(token) == container_pid) {
-                    // Found it: first_pid is host PID, token is container PID
+                    // Found dual PID entry: first_pid is host PID, token is container PID
+                    // This is the preferred match for namespace-separated processes
                     fclose(fp);
                     return first_pid;
                 } else if (!token && first_pid == container_pid) {
-                    // No namespace separation, same PID for both
-                    fclose(fp);
-                    return first_pid;
+                    // Single PID entry: no namespace separation
+                    // Keep scanning for a dual PID entry, but remember this as fallback
+                    fallback_pid = first_pid;
                 }
                 break;
             }
@@ -57,7 +59,7 @@ pid_t find_host_pid_from_container_pid(pid_t container_pid) {
         fclose(fp);
     }
 
-    return container_pid;  // Fall back to container PID if not found
+    return fallback_pid;  // Return fallback (single PID) if no dual PID found
 }
 
 int connect_to_agent() {

@@ -28,92 +28,10 @@ static const char *current_socket_path = NULL;
 // Forward declarations
 void remove_process(pid_t pid);
 
-// Function to get host PID from container PID
-// When agent runs in container, fork() returns container PID, we need to find host PID
-// This requires access to host's /proc filesystem, typically mounted at /host/proc
-pid_t get_host_pid(pid_t container_pid) {
-    char path[256];
-    char buffer[1024];
-    FILE *fp;
-    const char *proc_paths[] = {"/host/proc", "/proc", NULL};
-
-    // Try different possible paths to access host proc filesystem
-    for (int i = 0; proc_paths[i] != NULL; i++) {
-        snprintf(path, sizeof(path), "%s/%d/status", proc_paths[i], container_pid);
-        fp = fopen(path, "r");
-        if (!fp) {
-            continue;  // Try next path
-        }
-
-        while (fgets(buffer, sizeof(buffer), fp)) {
-            if (strncmp(buffer, "NSpid:", 6) == 0) {
-                // NSpid: format can be:
-                // "NSpid:\t<pid>" (no namespace) or
-                // "NSpid:\t<host_pid>\t<container_pid>" (in namespace)
-                char *token = strtok(buffer + 6, " \t\n");
-                if (!token) {
-                    fclose(fp);
-                    return container_pid;
-                }
-
-                pid_t first_pid = atoi(token);
-                token = strtok(NULL, " \t\n");
-
-                if (token) {
-                    // Two PIDs: first is host PID, second is container PID
-                    pid_t second_pid = atoi(token);
-                    fclose(fp);
-                    // If we're reading from host proc and container PID matches, return host PID
-                    if (second_pid == container_pid && i == 0) {
-                        return first_pid;  // Return host PID
-                    }
-                    // If reading from container proc, we won't see dual PIDs normally
-                    return first_pid;
-                } else {
-                    // Only one PID: either no namespace or we're seeing container view
-                    fclose(fp);
-                    if (i == 0) {
-                        // From host proc, single PID means no namespace
-                        return first_pid;
-                    }
-                    // From container proc, need to search for corresponding host PID
-                    continue;
-                }
-            }
-        }
-        fclose(fp);
-    }
-
-    // If we can't find host PID, scan host proc for matching container PID
-    // This is a fallback when we have access to host proc but the above didn't work
-    fp = fopen("/host/proc", "r");
-    if (fp) {
-        fclose(fp);
-        // Host proc is available, scan for our container PID
-        for (int pid = 1; pid < 65536; pid++) {
-            snprintf(path, sizeof(path), "/host/proc/%d/status", pid);
-            fp = fopen(path, "r");
-            if (!fp) continue;
-
-            while (fgets(buffer, sizeof(buffer), fp)) {
-                if (strncmp(buffer, "NSpid:", 6) == 0) {
-                    char *token = strtok(buffer + 6, " \t\n");
-                    if (!token) break;
-
-                    token = strtok(NULL, " \t\n");
-                    if (token && atoi(token) == container_pid) {
-                        // Found host PID that maps to our container PID
-                        fclose(fp);
-                        return pid;
-                    }
-                    break;
-                }
-            }
-            fclose(fp);
-        }
-    }
-
-    return container_pid;  // Fall back to container PID if we can't find host PID
+// Simple function - just return the PID as-is
+// The controller will handle reverse mapping from container PID to host PID
+pid_t get_container_pid(pid_t pid) {
+    return pid;  // Return the PID from fork() (which is container PID when in container)
 }
 
 void sigchld_handler(int sig) {
@@ -192,15 +110,14 @@ int start_process(const start_process_msg_t *req, message_t *response) {
 
     add_process(pid, req->name);
 
-    // When agent runs in container, fork() returns container PID
-    // We need to find the corresponding host PID
-    pid_t container_pid = pid;  // fork() returned container PID
-    pid_t host_pid = get_host_pid(container_pid);
-    fprintf(stderr, "DEBUG: Started process %d (%s), container PID: %d\n", host_pid, req->name, container_pid);
+    // fork() returns container PID when agent runs in container
+    // Controller will handle reverse mapping to find host PID
+    pid_t container_pid = get_container_pid(pid);
+    fprintf(stderr, "DEBUG: Started process %d (%s), container PID: %d\n", container_pid, req->name, container_pid);
 
     response->header.type = MSG_PROCESS_STARTED;
     response->header.length = sizeof(process_started_msg_t);
-    response->data.process_started.host_pid = host_pid;
+    response->data.process_started.host_pid = container_pid;  // Controller will fix this
     response->data.process_started.container_pid = container_pid;
 
     return 0;
@@ -245,9 +162,9 @@ int list_processes(message_t *response) {
             int status;
             if (waitpid(processes[i].pid, &status, WNOHANG) == 0) {
                 // processes[i].pid is the container PID (from fork())
-                pid_t container_pid = processes[i].pid;
-                pid_t host_pid = get_host_pid(container_pid);
-                response->data.process_list.processes[active_count].host_pid = host_pid;
+                // Controller will handle reverse mapping to find host PID
+                pid_t container_pid = get_container_pid(processes[i].pid);
+                response->data.process_list.processes[active_count].host_pid = container_pid;  // Controller will fix this
                 response->data.process_list.processes[active_count].container_pid = container_pid;
                 strncpy(response->data.process_list.processes[active_count].name,
                        processes[i].name, MAX_PROCESS_NAME - 1);
