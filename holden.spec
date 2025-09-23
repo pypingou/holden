@@ -1,6 +1,6 @@
 Name:             holden
 Version:          0.1
-Release:          4%{?dist}
+Release:          5%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -100,6 +100,9 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-5
+- Fix the container PID to host PID mapping logic
+
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-4
 - Improve the controller output
 - Fix avoiding zombie processes
