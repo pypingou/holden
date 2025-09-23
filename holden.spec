@@ -1,6 +1,6 @@
 Name:             holden
 Version:          0.1
-Release:          2%{?dist}
+Release:          3%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -101,6 +101,9 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-3
+- Fix agent crashing when the child process doesn't exist
+
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-2
 - Make the socket configurable through an environment variable
 
