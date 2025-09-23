@@ -65,6 +65,12 @@ int start_process(const start_process_msg_t *req, message_t *response) {
     }
 
     if (pid == 0) {
+        // Child process: close all inherited file descriptors
+        // This prevents interference with parent's socket operations
+        for (int fd = 3; fd < 1024; fd++) {
+            close(fd);
+        }
+
         char *args[MAX_ARGS + 2];
         args[0] = (char*)req->name;
 
@@ -229,6 +235,7 @@ int main() {
     const char *socket_path;
 
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGCHLD, SIG_IGN);  // Prevent agent termination when child processes exit
     atexit(cleanup_socket);
 
     if (init_cgroups() == -1) {
