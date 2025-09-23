@@ -86,7 +86,7 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %license %{_docdir}/%{name}/LICENSE
 %doc %{_docdir}/%{name}/README.md
 %doc %{_docdir}/%{name}/TESTING.md
-%{_bindir}/holden-pidfd-monitor
+%{_bindir}/holden-orchestrator
 
 %files agent
 %license %{_docdir}/%{name}/LICENSE
@@ -105,11 +105,12 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 - Major architecture redesign to stateless pidfd-based approach
 - Simplify agent to only spawn processes and return pidfd references via fd passing
 - Remove all state management and process tracking from agent
-- Add new pidfd monitor demo showing local and agent process management
+- Add new process orchestrator (renamed from pidfd monitor) for local and agent process management
 - Remove obsolete controller and monitor utilities incompatible with new architecture
 - Remove stop/list/constraints operations (now handled by caller via pidfds)
 - Remove cgroups integration (delegated to caller)
-- Update documentation to focus on pidfd-based monitoring approach
+- Update documentation to focus on pidfd-based orchestration approach
+- Fix zombie process handling in both agent and orchestrator with proper SIGCHLD reaping
 
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-6
 - Simplify agent to stateless pidfd-based process spawning

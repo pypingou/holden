@@ -9,8 +9,21 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
 #include <signal.h>
 #include "protocol.h"
+
+// Signal handler for SIGCHLD to reap zombie children
+void sigchld_handler(int sig) {
+    (void)sig; // Unused parameter
+    int status;
+    pid_t pid;
+
+    // Reap all available zombie children
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        // Child reaped, no action needed since caller manages processes via pidfds
+    }
+}
 
 static const char *current_socket_path = NULL;
 
@@ -158,6 +171,16 @@ int main(int argc, char *argv[]) {
 
     signal(SIGPIPE, SIG_IGN);
     atexit(cleanup_socket);
+
+    // Install SIGCHLD handler to reap zombie children
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction");
+        return 1;
+    }
 
     socket_path = getenv("HOLDEN_SOCKET_PATH");
     if (socket_path == NULL) {

@@ -9,9 +9,22 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <sys/poll.h>
+#include <sys/wait.h>
 #include <signal.h>
 #include <time.h>
 #include "protocol.h"
+
+// Signal handler for SIGCHLD to reap zombie children
+void sigchld_handler(int sig) {
+    (void)sig; // Unused parameter
+    int status;
+    pid_t pid;
+
+    // Reap all available zombie children
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        // Child reaped, no action needed since we use pidfds for monitoring
+    }
+}
 
 // pidfd_open system call wrapper
 int pidfd_open(pid_t pid, unsigned int flags) {
@@ -166,14 +179,14 @@ int spawn_agent_process(const char *cmd, char *const args[]) {
 }
 
 void print_usage(const char *prog_name) {
-    printf("PID File Descriptor Monitor Demo\n");
+    printf("Holden PID File Descriptor Process Orchestrator\n");
     printf("Usage: %s <local_cmd> <agent_cmd>\n", prog_name);
     printf("\n");
-    printf("This program demonstrates pidfd-based process monitoring by:\n");
+    printf("This program demonstrates pidfd-based process orchestration by:\n");
     printf("1. Spawning <local_cmd> locally using fork() and getting its pidfd\n");
     printf("2. Spawning <agent_cmd> via the holden agent and receiving its pidfd\n");
-    printf("3. Monitoring both processes using poll() on their pidfds\n");
-    printf("4. Restarting processes when they die\n");
+    printf("3. Orchestrating both processes using poll() on their pidfds\n");
+    printf("4. Automatically restarting processes when they die\n");
     printf("\n");
     printf("Example: %s 'sleep 5' 'sleep 10'\n", prog_name);
     printf("Environment Variables:\n");
@@ -183,6 +196,16 @@ void print_usage(const char *prog_name) {
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         print_usage(argv[0]);
+        return 1;
+    }
+
+    // Install SIGCHLD handler to reap zombie children
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction");
         return 1;
     }
 
@@ -216,7 +239,7 @@ int main(int argc, char *argv[]) {
     }
     agent_args[agent_argc] = NULL;
 
-    printf("Starting pidfd monitor demo...\n");
+    printf("Starting pidfd orchestrator demo...\n");
     printf("Local command: %s\n", local_cmd);
     printf("Agent command: %s\n", agent_cmd);
     printf("Press Ctrl+C to exit\n\n");

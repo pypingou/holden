@@ -9,7 +9,7 @@ BINDIR = bin
 SOURCES = protocol.c cgroups.c
 OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
 
-TARGETS = $(BINDIR)/agent $(BINDIR)/pidfd_monitor
+TARGETS = $(BINDIR)/agent $(BINDIR)/orchestrator
 
 .PHONY: all clean install rpm srpm dist
 
@@ -27,7 +27,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 $(BINDIR)/agent: $(SRCDIR)/agent.c $(OBJECTS) | $(BINDIR)
 	$(CC) $(CFLAGS) $< $(OBJECTS) -o $@ $(LDFLAGS)
 
-$(BINDIR)/pidfd_monitor: $(SRCDIR)/pidfd_monitor.c $(OBJECTS) | $(BINDIR)
+$(BINDIR)/orchestrator: $(SRCDIR)/orchestrator.c $(OBJECTS) | $(BINDIR)
 	$(CC) $(CFLAGS) $< $(OBJECTS) -o $@ $(LDFLAGS)
 
 clean:
@@ -80,7 +80,7 @@ install: all
 	install -d $(MANDIR_INSTALL)/man8
 
 	# Install user binaries
-	install -m 755 $(BINDIR)/pidfd_monitor $(BINDIR_INSTALL)/holden-pidfd-monitor
+	install -m 755 $(BINDIR)/orchestrator $(BINDIR_INSTALL)/holden-orchestrator
 
 	# Install system daemons to libexec (not meant for direct user execution)
 	install -m 755 $(BINDIR)/agent $(LIBEXECDIR_INSTALL)/holden-agent
@@ -146,17 +146,17 @@ help:
 	@echo
 	@echo "Components:"
 	@echo "  agent         - Stateless process spawning agent (runs in container)"
-	@echo "  pidfd_monitor - pidfd-based monitor demonstration"
+	@echo "  orchestrator  - pidfd-based process orchestrator"
 	@echo
 	@echo "RPM Packages:"
-	@echo "  holden       - pidfd monitor utility"
+	@echo "  holden       - Process orchestrator utility"
 	@echo "  holden-agent - Agent daemon with systemd"
 	@echo "  holden-devel - Development headers"
 	@echo
 	@echo "Usage after build:"
-	@echo "  ./bin/agent                                    # Start stateless agent"
-	@echo "  ./bin/pidfd_monitor 'sleep 5' 'sleep 10'      # Demo pidfd monitoring"
+	@echo "  ./bin/agent                                  # Start stateless agent"
+	@echo "  ./bin/orchestrator 'sleep 5' 'sleep 10'     # Demo process orchestration"
 	@echo
 	@echo "After RPM install:"
-	@echo "  sudo systemctl start holden-agent           # Start agent service"
-	@echo "  holden-pidfd-monitor 'app1' 'app2'          # Demo pidfd monitoring"
+	@echo "  sudo systemctl start holden-agent         # Start agent service"
+	@echo "  holden-orchestrator 'app1' 'app2'         # Demo process orchestration"
