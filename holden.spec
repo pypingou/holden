@@ -1,6 +1,6 @@
 Name:             holden
 Version:          0.2
-Release:          3%{?dist}
+Release:          4%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -101,6 +101,9 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.2-4
+- Project clean up of some old files
+
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.2-3
 - Fixed the agent-orchestrator communication deadlock
 - Fix formatting bug
