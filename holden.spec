@@ -1,6 +1,6 @@
 Name:             holden
 Version:          0.1
-Release:          3%{?dist}
+Release:          4%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -100,6 +100,13 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-4
+- Improve the controller output
+- Fix avoiding zombie processes
+- Add --help to the binaries
+- Drop the unused holden-agent-wrapper
+- Add the container PID and host PID instead of just the first one
+
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-3
 - Fix agent crashing when the child process doesn't exist
 
