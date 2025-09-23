@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# RPM Build Script for Process Orchestrator
+# RPM Build Script for Holden Process Orchestration System v0.2
 # Builds RPM packages for Fedora/RHEL/CentOS
 
 set -e
 
 # Configuration
 PACKAGE_NAME="holden"
-VERSION="0.1"
-RELEASE="1"
+VERSION="0.2"
+RELEASE="3"
 
 # Colors
 RED='\033[0;31m'
@@ -47,4 +47,4 @@ echo -e "${BLUE}Testing installation:${NC}"
 echo "1. Locate packages in your RPM build directory"
 echo "2. Install with: sudo dnf install <path-to-rpm>"
 echo "3. Start agent: sudo systemctl start holden-agent"
-echo "4. Test controller: holden-controller list"
+echo "4. Test orchestrator: holden-orchestrator 'sleep 5' 'sleep 10'"
