@@ -243,16 +243,42 @@ void print_usage(const char *prog_name) {
 }
 
 void show_monitored_processes() {
-    printf("Monitored processes (%d):\n", monitored_count);
-    for (int i = 0; i < monitored_count; i++) {
-        if (monitored_processes[i].monitored) {
-            time_t now = time(NULL);
-            int uptime = (int)(now - monitored_processes[i].start_time);
-            printf("  PID: %d, Name: %s, Uptime: %d seconds\n",
-                   monitored_processes[i].pid,
-                   monitored_processes[i].name,
-                   uptime);
+    // Query the agent for current process list instead of using local array
+    // This fixes the issue where each controller session has its own empty array
+    int sockfd = connect_to_agent();
+    if (sockfd == -1) {
+        printf("Failed to connect to agent\n");
+        return;
+    }
+
+    message_t request = {0};
+    request.header.type = MSG_LIST_PROCESSES;
+    request.header.length = 0;
+
+    if (send_message(sockfd, &request) == -1) {
+        printf("Failed to send list processes message\n");
+        close(sockfd);
+        return;
+    }
+
+    message_t response;
+    if (recv_message(sockfd, &response) == -1) {
+        printf("Failed to receive response\n");
+        close(sockfd);
+        return;
+    }
+
+    close(sockfd);
+
+    if (response.header.type == MSG_PROCESS_LIST) {
+        printf("Monitored processes (%d):\n", response.data.process_list.count);
+        for (int i = 0; i < response.data.process_list.count; i++) {
+            printf("  PID: %d, Name: %s\n",
+                   response.data.process_list.processes[i].pid,
+                   response.data.process_list.processes[i].name);
         }
+    } else {
+        printf("Failed to get process list from agent\n");
     }
 }
 
