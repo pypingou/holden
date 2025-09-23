@@ -116,8 +116,7 @@ podman run -d --name holden-agent \
 
 - `protocol.h/c` - Communication protocol definitions
 - `agent.c` - Stateless process spawning agent
-- `pidfd_monitor.c` - pidfd-based monitor demonstration
-- `cgroups.h/c` - cgroups integration (unused by agent)
+- `orchestrator.c` - pidfd-based process orchestrator demonstration
 - `Makefile` - Build system
 
 ## Protocol

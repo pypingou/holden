@@ -6,7 +6,7 @@ SRCDIR = .
 OBJDIR = obj
 BINDIR = bin
 
-SOURCES = protocol.c cgroups.c
+SOURCES = protocol.c
 OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
 
 TARGETS = $(BINDIR)/agent $(BINDIR)/orchestrator
@@ -87,7 +87,6 @@ install: all
 
 	# Install headers
 	install -m 644 protocol.h $(INCLUDEDIR_INSTALL)/
-	install -m 644 cgroups.h $(INCLUDEDIR_INSTALL)/
 
 	# Install documentation
 	install -m 644 README.md $(DOCDIR_INSTALL)/
