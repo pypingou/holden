@@ -1,6 +1,6 @@
 Name:             holden
 Version:          0.2
-Release:          1%{?dist}
+Release:          2%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -101,6 +101,10 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.2-2
+- Fix the zombie process handling by the agent
+- Rename pidfd_monitor to orchestrator
+
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.2-1
 - Major architecture redesign to stateless pidfd-based approach
 - Simplify agent to only spawn processes and return pidfd references via fd passing
