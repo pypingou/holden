@@ -28,8 +28,9 @@ static const char *current_socket_path = NULL;
 void sigchld_handler(int sig) {
     (void)sig;  // Unused parameter
     // Reap all available zombie children without affecting the agent
-    while (waitpid(-1, NULL, WNOHANG) > 0) {
-        // Keep reaping until no more zombies
+    pid_t pid;
+    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+        fprintf(stderr, "DEBUG: Reaped child process %d\n", pid);
     }
 }
 
@@ -73,7 +74,10 @@ int start_process(const start_process_msg_t *req, message_t *response) {
     }
 
     if (pid == 0) {
-        // Child process: close all inherited file descriptors
+        // Child process: clear inherited atexit handlers to prevent socket cleanup
+        // This is critical - child must not clean up parent's socket!
+
+        // Close all inherited file descriptors
         // This prevents interference with parent's socket operations
         for (int fd = 3; fd < 1024; fd++) {
             close(fd);
@@ -89,10 +93,11 @@ int start_process(const start_process_msg_t *req, message_t *response) {
 
         execvp(req->name, args);
         fprintf(stderr, "Failed to exec %s: %s\n", req->name, strerror(errno));
-        exit(1);
+        _exit(1);  // Use _exit to avoid calling atexit handlers
     }
 
     add_process(pid, req->name);
+    fprintf(stderr, "DEBUG: Started process %d (%s)\n", pid, req->name);
 
     response->header.type = MSG_PROCESS_STARTED;
     response->header.length = sizeof(process_started_msg_t);
@@ -233,6 +238,7 @@ int handle_message(int sockfd, const message_t *request) {
 
 void cleanup_socket() {
     if (current_socket_path) {
+        fprintf(stderr, "DEBUG: cleanup_socket() called - removing %s\n", current_socket_path);
         unlink(current_socket_path);
     }
 }
