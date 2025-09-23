@@ -88,7 +88,6 @@ install: all
 
 	# Install system daemons to libexec (not meant for direct user execution)
 	install -m 755 $(BINDIR)/agent $(LIBEXECDIR_INSTALL)/holden-agent
-	install -m 755 config/holden-agent-wrapper $(LIBEXECDIR_INSTALL)/
 
 	# Install headers
 	install -m 644 protocol.h $(INCLUDEDIR_INSTALL)/
