@@ -35,7 +35,7 @@ clean:
 
 # Package version information
 PACKAGE_NAME = holden
-VERSION = 0.1
+VERSION = 0.2
 TARBALL = $(PACKAGE_NAME)-$(VERSION).tar.gz
 
 dist: clean

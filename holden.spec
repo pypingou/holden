@@ -1,6 +1,6 @@
 Name:             holden
-Version:          0.1
-Release:          6%{?dist}
+Version:          0.2
+Release:          1%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -101,6 +101,16 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.2-1
+- Major architecture redesign to stateless pidfd-based approach
+- Simplify agent to only spawn processes and return pidfd references via fd passing
+- Remove all state management and process tracking from agent
+- Add new pidfd monitor demo showing local and agent process management
+- Remove obsolete controller and monitor utilities incompatible with new architecture
+- Remove stop/list/constraints operations (now handled by caller via pidfds)
+- Remove cgroups integration (delegated to caller)
+- Update documentation to focus on pidfd-based monitoring approach
+
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-6
 - Simplify agent to stateless pidfd-based process spawning
 - Remove all state management and complex process tracking from agent
