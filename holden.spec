@@ -1,6 +1,6 @@
 Name:             holden
 Version:          0.1
-Release:          1%{?dist}
+Release:          2%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -101,6 +101,9 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-2
+- Make the socket configurable through an environment variable
+
 * Mon Sep 22 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-1
 - Initial RPM package for Holden process orchestration system
 - Named after 19th century puppeteer Joseph Holden
