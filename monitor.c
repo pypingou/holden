@@ -139,15 +139,16 @@ void monitor_processes() {
                 printf("No processes running.\n");
             } else {
                 for (int i = 0; i < response.data.process_list.count; i++) {
-                    pid_t pid = response.data.process_list.processes[i].pid;
+                    pid_t host_pid = response.data.process_list.processes[i].host_pid;
+                    pid_t container_pid = response.data.process_list.processes[i].container_pid;
                     const char *name = response.data.process_list.processes[i].name;
 
                     unsigned long utime, stime, vmrss_kb;
-                    int cpu_available = (read_proc_stat(pid, &utime, &stime) == 0);
-                    int mem_available = (read_proc_status(pid, &vmrss_kb) == 0);
+                    int cpu_available = (read_proc_stat(host_pid, &utime, &stime) == 0);
+                    int mem_available = (read_proc_status(host_pid, &vmrss_kb) == 0);
 
-                    printf("Process %d (%s):\n", pid, name);
-                    printf("  Status: %s\n", check_process_exists(pid) ? "Running" : "Dead");
+                    printf("Process Host PID: %d, Container PID: %d (%s):\n", host_pid, container_pid, name);
+                    printf("  Status: %s\n", check_process_exists(host_pid) ? "Running" : "Dead");
 
                     if (cpu_available) {
                         printf("  CPU Time: user=%lu, system=%lu\n", utime, stime);

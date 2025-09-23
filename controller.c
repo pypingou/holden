@@ -106,13 +106,14 @@ int start_process_cmd(const char *name, char *args[], int arg_count) {
     }
 
     if (response.header.type == MSG_PROCESS_STARTED) {
-        printf("Process started successfully with PID: %d\n", response.data.process_started.pid);
-        add_monitored_process(response.data.process_started.pid, name);
+        printf("Process started successfully with Host PID: %d, Container PID: %d\n",
+               response.data.process_started.host_pid, response.data.process_started.container_pid);
+        add_monitored_process(response.data.process_started.host_pid, name);
 
         message_t ack = {0};
         ack.header.type = MSG_ACK;
         ack.header.length = sizeof(ack_msg_t);
-        ack.data.ack.request_id = response.data.process_started.pid;
+        ack.data.ack.request_id = response.data.process_started.host_pid;
         send_message(sockfd, &ack);
     } else if (response.header.type == MSG_PROCESS_ERROR) {
         printf("Error starting process: %s\n", response.data.process_error.error);
@@ -149,8 +150,9 @@ int list_processes_cmd() {
     if (response.header.type == MSG_PROCESS_LIST) {
         printf("Running processes (%d):\n", response.data.process_list.count);
         for (int i = 0; i < response.data.process_list.count; i++) {
-            printf("  PID: %d, Name: %s\n",
-                   response.data.process_list.processes[i].pid,
+            printf("  Host PID: %d, Container PID: %d, Name: %s\n",
+                   response.data.process_list.processes[i].host_pid,
+                   response.data.process_list.processes[i].container_pid,
                    response.data.process_list.processes[i].name);
         }
     }
@@ -287,8 +289,9 @@ void show_monitored_processes() {
     if (response.header.type == MSG_PROCESS_LIST) {
         printf("Monitored processes (%d):\n", response.data.process_list.count);
         for (int i = 0; i < response.data.process_list.count; i++) {
-            printf("  PID: %d, Name: %s\n",
-                   response.data.process_list.processes[i].pid,
+            printf("  Host PID: %d, Container PID: %d, Name: %s\n",
+                   response.data.process_list.processes[i].host_pid,
+                   response.data.process_list.processes[i].container_pid,
                    response.data.process_list.processes[i].name);
         }
     } else {

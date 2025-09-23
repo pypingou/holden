@@ -37,7 +37,8 @@ typedef struct {
 } start_process_msg_t;
 
 typedef struct {
-    pid_t pid;
+    pid_t host_pid;
+    pid_t container_pid;  // PID as seen inside container namespace
 } process_started_msg_t;
 
 typedef struct {
@@ -69,7 +70,8 @@ typedef struct {
 typedef struct {
     int count;
     struct {
-        pid_t pid;
+        pid_t host_pid;
+        pid_t container_pid;  // PID as seen inside container namespace
         char name[MAX_PROCESS_NAME];
     } processes[64];
 } process_list_msg_t;

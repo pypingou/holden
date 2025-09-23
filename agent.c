@@ -28,6 +28,39 @@ static const char *current_socket_path = NULL;
 // Forward declarations
 void remove_process(pid_t pid);
 
+// Function to read container PID from /proc/{pid}/status
+pid_t get_container_pid(pid_t host_pid) {
+    char path[256];
+    char buffer[1024];
+    FILE *fp;
+
+    snprintf(path, sizeof(path), "/proc/%d/status", host_pid);
+    fp = fopen(path, "r");
+    if (!fp) {
+        return host_pid;  // Fall back to host PID if we can't read status
+    }
+
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        if (strncmp(buffer, "NSpid:", 6) == 0) {
+            // NSpid: format is "NSpid:\t<host_pid>\t<container_pid>"
+            // We want the last PID in the list (innermost namespace)
+            char *token = strtok(buffer + 6, " \t\n");
+            pid_t container_pid = host_pid;  // Default to host PID
+
+            while (token) {
+                container_pid = atoi(token);
+                token = strtok(NULL, " \t\n");
+            }
+
+            fclose(fp);
+            return container_pid;
+        }
+    }
+
+    fclose(fp);
+    return host_pid;  // If no NSpid found, return host PID
+}
+
 void sigchld_handler(int sig) {
     (void)sig;  // Unused parameter
     // Reap all available zombie children without affecting the agent
@@ -103,11 +136,15 @@ int start_process(const start_process_msg_t *req, message_t *response) {
     }
 
     add_process(pid, req->name);
-    fprintf(stderr, "DEBUG: Started process %d (%s)\n", pid, req->name);
+
+    // Get container PID (might be different due to PID namespaces)
+    pid_t container_pid = get_container_pid(pid);
+    fprintf(stderr, "DEBUG: Started process %d (%s), container PID: %d\n", pid, req->name, container_pid);
 
     response->header.type = MSG_PROCESS_STARTED;
     response->header.length = sizeof(process_started_msg_t);
-    response->data.process_started.pid = pid;
+    response->data.process_started.host_pid = pid;
+    response->data.process_started.container_pid = container_pid;
 
     return 0;
 }
@@ -150,7 +187,9 @@ int list_processes(message_t *response) {
         if (processes[i].active) {
             int status;
             if (waitpid(processes[i].pid, &status, WNOHANG) == 0) {
-                response->data.process_list.processes[active_count].pid = processes[i].pid;
+                pid_t container_pid = get_container_pid(processes[i].pid);
+                response->data.process_list.processes[active_count].host_pid = processes[i].pid;
+                response->data.process_list.processes[active_count].container_pid = container_pid;
                 strncpy(response->data.process_list.processes[active_count].name,
                        processes[i].name, MAX_PROCESS_NAME - 1);
                 response->data.process_list.processes[active_count].name[MAX_PROCESS_NAME - 1] = '\0';
