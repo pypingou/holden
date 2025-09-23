@@ -25,6 +25,14 @@ static process_info_t processes[MAX_PROCESSES];
 static int process_count = 0;
 static const char *current_socket_path = NULL;
 
+void sigchld_handler(int sig) {
+    (void)sig;  // Unused parameter
+    // Reap all available zombie children without affecting the agent
+    while (waitpid(-1, NULL, WNOHANG) > 0) {
+        // Keep reaping until no more zombies
+    }
+}
+
 void add_process(pid_t pid, const char *name) {
     if (process_count < MAX_PROCESSES) {
         processes[process_count].pid = pid;
@@ -235,7 +243,7 @@ int main() {
     const char *socket_path;
 
     signal(SIGPIPE, SIG_IGN);
-    signal(SIGCHLD, SIG_IGN);  // Prevent agent termination when child processes exit
+    signal(SIGCHLD, sigchld_handler);  // Handle child process exits properly
     atexit(cleanup_socket);
 
     if (init_cgroups() == -1) {
