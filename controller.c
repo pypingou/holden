@@ -23,6 +23,13 @@ static int monitored_count = 0;
 int connect_to_agent() {
     int sockfd;
     struct sockaddr_un addr;
+    const char *socket_path;
+
+    // Allow socket path to be configured via environment variable
+    socket_path = getenv("HOLDEN_SOCKET_PATH");
+    if (socket_path == NULL) {
+        socket_path = SOCKET_PATH;  // Fall back to default
+    }
 
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd == -1) {
@@ -32,7 +39,7 @@ int connect_to_agent() {
 
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, SOCKET_PATH, sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
 
     if (connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         perror("connect");
