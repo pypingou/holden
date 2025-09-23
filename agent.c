@@ -1,80 +1,47 @@
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/wait.h>
-#include <signal.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <sys/syscall.h>
+#include <signal.h>
 #include "protocol.h"
-#include "cgroups.h"
 
-#define MAX_PROCESSES 64
-
-typedef struct {
-    pid_t pid;
-    char name[MAX_PROCESS_NAME];
-    int active;
-} process_info_t;
-
-static process_info_t processes[MAX_PROCESSES];
-static int process_count = 0;
 static const char *current_socket_path = NULL;
 
-// Forward declarations
-void remove_process(pid_t pid);
-
-// Simple function - just return the PID as-is
-// The controller will handle reverse mapping from container PID to host PID
-pid_t get_container_pid(pid_t pid) {
-    return pid;  // Return the PID from fork() (which is container PID when in container)
+// pidfd_open system call wrapper
+int pidfd_open(pid_t pid, unsigned int flags) {
+    return syscall(SYS_pidfd_open, pid, flags);
 }
 
-void sigchld_handler(int sig) {
-    (void)sig;  // Unused parameter
-    // Reap all available zombie children without affecting the agent
-    pid_t pid;
-    int status;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        fprintf(stderr, "DEBUG: Reaped child process %d\n", pid);
-        // Also remove from tracking if it's a managed process
-        remove_process(pid);
-    }
+// Send file descriptor over Unix socket
+int send_fd(int socket, int fd) {
+    struct msghdr msg = {0};
+    struct cmsghdr *cmsg;
+    char buf[CMSG_SPACE(sizeof(int))];
+    char data = 'x';
+    struct iovec iov = {.iov_base = &data, .iov_len = 1};
+
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = buf;
+    msg.msg_controllen = sizeof(buf);
+
+    cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    *(int*)CMSG_DATA(cmsg) = fd;
+
+    return sendmsg(socket, &msg, 0);
 }
 
-void add_process(pid_t pid, const char *name) {
-    if (process_count < MAX_PROCESSES) {
-        processes[process_count].pid = pid;
-        strncpy(processes[process_count].name, name, MAX_PROCESS_NAME - 1);
-        processes[process_count].name[MAX_PROCESS_NAME - 1] = '\0';
-        processes[process_count].active = 1;
-        process_count++;
-    }
-}
-
-void remove_process(pid_t pid) {
-    for (int i = 0; i < process_count; i++) {
-        if (processes[i].pid == pid && processes[i].active) {
-            processes[i].active = 0;
-            break;
-        }
-    }
-}
-
-process_info_t* find_process(pid_t pid) {
-    for (int i = 0; i < process_count; i++) {
-        if (processes[i].pid == pid && processes[i].active) {
-            return &processes[i];
-        }
-    }
-    return NULL;
-}
-
-int start_process(const start_process_msg_t *req, message_t *response) {
+int start_process(int sockfd, const start_process_msg_t *req, message_t *response) {
     pid_t pid = fork();
 
     if (pid == -1) {
@@ -86,11 +53,7 @@ int start_process(const start_process_msg_t *req, message_t *response) {
     }
 
     if (pid == 0) {
-        // Child process: clear inherited atexit handlers to prevent socket cleanup
-        // This is critical - child must not clean up parent's socket!
-
-        // Close all inherited file descriptors
-        // This prevents interference with parent's socket operations
+        // Child process: close inherited file descriptors and exec
         for (int fd = 3; fd < 1024; fd++) {
             close(fd);
         }
@@ -105,119 +68,35 @@ int start_process(const start_process_msg_t *req, message_t *response) {
 
         execvp(req->name, args);
         fprintf(stderr, "Failed to exec %s: %s\n", req->name, strerror(errno));
-        _exit(1);  // Use _exit to avoid calling atexit handlers
+        _exit(1);
     }
 
-    add_process(pid, req->name);
+    // Parent: get pidfd for the child
+    int pidfd = pidfd_open(pid, 0);
+    if (pidfd == -1) {
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to open pidfd for process %d: %s", pid, strerror(errno));
+        return 0;
+    }
 
-    // fork() returns container PID when agent runs in container
-    // Controller will handle reverse mapping to find host PID
-    pid_t container_pid = get_container_pid(pid);
-    fprintf(stderr, "DEBUG: Started process %d (%s), container PID: %d\n", container_pid, req->name, container_pid);
+    // Send the pidfd back to caller via fd passing
+    if (send_fd(sockfd, pidfd) == -1) {
+        close(pidfd);
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to send pidfd: %s", strerror(errno));
+        return 0;
+    }
+
+    close(pidfd); // We've passed it, don't need our copy
 
     response->header.type = MSG_PROCESS_STARTED;
     response->header.length = sizeof(process_started_msg_t);
-    response->data.process_started.host_pid = container_pid;  // Controller will fix this
-    response->data.process_started.container_pid = container_pid;
-
-    return 0;
-}
-
-int stop_process(const stop_process_msg_t *req, message_t *response) {
-    process_info_t *proc = find_process(req->pid);
-
-    if (!proc) {
-        response->header.type = MSG_PROCESS_ERROR;
-        response->header.length = sizeof(process_error_msg_t);
-        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
-                "Process %d not found", req->pid);
-        return 0;
-    }
-
-    if (kill(req->pid, SIGTERM) == -1) {
-        response->header.type = MSG_PROCESS_ERROR;
-        response->header.length = sizeof(process_error_msg_t);
-        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
-                "Failed to kill process %d: %s", req->pid, strerror(errno));
-        return 0;
-    }
-
-    // Don't remove from tracking immediately - let SIGCHLD handler do it when process actually exits
-    // This prevents zombie processes when stop_process is called
-
-    response->header.type = MSG_PROCESS_STOPPED;
-    response->header.length = sizeof(process_stopped_msg_t);
-    response->data.process_stopped.pid = req->pid;
-
-    return 0;
-}
-
-int list_processes(message_t *response) {
-    response->header.type = MSG_PROCESS_LIST;
-    response->header.length = sizeof(process_list_msg_t);
-
-    int active_count = 0;
-    for (int i = 0; i < process_count && active_count < 64; i++) {
-        if (processes[i].active) {
-            int status;
-            if (waitpid(processes[i].pid, &status, WNOHANG) == 0) {
-                // processes[i].pid is the container PID (from fork())
-                // Controller will handle reverse mapping to find host PID
-                pid_t container_pid = get_container_pid(processes[i].pid);
-                response->data.process_list.processes[active_count].host_pid = container_pid;  // Controller will fix this
-                response->data.process_list.processes[active_count].container_pid = container_pid;
-                strncpy(response->data.process_list.processes[active_count].name,
-                       processes[i].name, MAX_PROCESS_NAME - 1);
-                response->data.process_list.processes[active_count].name[MAX_PROCESS_NAME - 1] = '\0';
-                active_count++;
-            } else {
-                processes[i].active = 0;
-            }
-        }
-    }
-
-    response->data.process_list.count = active_count;
-    return 0;
-}
-
-int apply_constraints(const apply_constraints_msg_t *req, message_t *response) {
-    process_info_t *proc = find_process(req->pid);
-
-    if (!proc) {
-        response->header.type = MSG_PROCESS_ERROR;
-        response->header.length = sizeof(process_error_msg_t);
-        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
-                "Process %d not found", req->pid);
-        return 0;
-    }
-
-    if (create_process_cgroup(req->pid) == -1) {
-        response->header.type = MSG_PROCESS_ERROR;
-        response->header.length = sizeof(process_error_msg_t);
-        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
-                "Failed to create cgroup for process %d", req->pid);
-        return 0;
-    }
-
-    if (req->memory_limit > 0 && apply_memory_limit(req->pid, req->memory_limit) == -1) {
-        response->header.type = MSG_PROCESS_ERROR;
-        response->header.length = sizeof(process_error_msg_t);
-        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
-                "Failed to apply memory limit to process %d", req->pid);
-        return 0;
-    }
-
-    if (req->cpu_limit > 0 && apply_cpu_limit(req->pid, req->cpu_limit) == -1) {
-        response->header.type = MSG_PROCESS_ERROR;
-        response->header.length = sizeof(process_error_msg_t);
-        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
-                "Failed to apply CPU limit to process %d", req->pid);
-        return 0;
-    }
-
-    response->header.type = MSG_CONSTRAINTS_APPLIED;
-    response->header.length = sizeof(constraints_applied_msg_t);
-    response->data.constraints_applied.pid = req->pid;
+    response->data.process_started.host_pid = pid;
+    response->data.process_started.container_pid = pid;
 
     return 0;
 }
@@ -227,19 +106,7 @@ int handle_message(int sockfd, const message_t *request) {
 
     switch (request->header.type) {
         case MSG_START_PROCESS:
-            start_process(&request->data.start_process, &response);
-            break;
-
-        case MSG_STOP_PROCESS:
-            stop_process(&request->data.stop_process, &response);
-            break;
-
-        case MSG_LIST_PROCESSES:
-            list_processes(&response);
-            break;
-
-        case MSG_APPLY_CONSTRAINTS:
-            apply_constraints(&request->data.apply_constraints, &response);
+            start_process(sockfd, &request->data.start_process, &response);
             break;
 
         case MSG_PING:
@@ -260,7 +127,6 @@ int handle_message(int sockfd, const message_t *request) {
 
 void cleanup_socket() {
     if (current_socket_path) {
-        fprintf(stderr, "DEBUG: cleanup_socket() called - removing %s\n", current_socket_path);
         unlink(current_socket_path);
     }
 }
@@ -271,23 +137,16 @@ void print_agent_usage(const char *prog_name) {
     printf("\n");
     printf("Usage: %s [--help|-h]\n", prog_name);
     printf("\n");
-    printf("The agent runs as a daemon and manages processes on behalf of controllers.\n");
+    printf("The agent spawns processes and returns pidfd references.\n");
     printf("It listens on a Unix domain socket for commands from holden-controller.\n");
     printf("\n");
     printf("Environment Variables:\n");
     printf("  HOLDEN_SOCKET_PATH    - Path to agent socket (default: %s)\n", SOCKET_PATH);
     printf("\n");
-    printf("Features:\n");
-    printf("  - Process lifecycle management (start/stop/list)\n");
-    printf("  - Resource constraints via cgroups v2\n");
-    printf("  - Real-time process monitoring\n");
-    printf("  - Unix domain socket communication\n");
-    printf("\n");
-    printf("Typically started via systemd: systemctl start holden-agent\n");
+    printf("The agent maintains no state - all process management is handled by the caller.\n");
 }
 
 int main(int argc, char *argv[]) {
-    // Handle --help or -h
     if (argc > 1 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
         print_agent_usage(argv[0]);
         return 0;
@@ -298,17 +157,11 @@ int main(int argc, char *argv[]) {
     const char *socket_path;
 
     signal(SIGPIPE, SIG_IGN);
-    signal(SIGCHLD, sigchld_handler);  // Handle child process exits properly
     atexit(cleanup_socket);
 
-    if (init_cgroups() == -1) {
-        fprintf(stderr, "Warning: Failed to initialize cgroups, constraints will not work\n");
-    }
-
-    // Allow socket path to be configured via environment variable
     socket_path = getenv("HOLDEN_SOCKET_PATH");
     if (socket_path == NULL) {
-        socket_path = SOCKET_PATH;  // Fall back to default
+        socket_path = SOCKET_PATH;
     }
     current_socket_path = socket_path;
 
