@@ -25,12 +25,18 @@ static process_info_t processes[MAX_PROCESSES];
 static int process_count = 0;
 static const char *current_socket_path = NULL;
 
+// Forward declarations
+void remove_process(pid_t pid);
+
 void sigchld_handler(int sig) {
     (void)sig;  // Unused parameter
     // Reap all available zombie children without affecting the agent
     pid_t pid;
-    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+    int status;
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         fprintf(stderr, "DEBUG: Reaped child process %d\n", pid);
+        // Also remove from tracking if it's a managed process
+        remove_process(pid);
     }
 }
 
@@ -125,7 +131,8 @@ int stop_process(const stop_process_msg_t *req, message_t *response) {
         return 0;
     }
 
-    remove_process(req->pid);
+    // Don't remove from tracking immediately - let SIGCHLD handler do it when process actually exits
+    // This prevents zombie processes when stop_process is called
 
     response->header.type = MSG_PROCESS_STOPPED;
     response->header.length = sizeof(process_stopped_msg_t);
