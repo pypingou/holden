@@ -9,7 +9,7 @@ BINDIR = bin
 SOURCES = protocol.c cgroups.c
 OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
 
-TARGETS = $(BINDIR)/agent $(BINDIR)/controller $(BINDIR)/monitor
+TARGETS = $(BINDIR)/agent $(BINDIR)/pidfd_monitor
 
 .PHONY: all clean install rpm srpm dist
 
@@ -27,10 +27,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 $(BINDIR)/agent: $(SRCDIR)/agent.c $(OBJECTS) | $(BINDIR)
 	$(CC) $(CFLAGS) $< $(OBJECTS) -o $@ $(LDFLAGS)
 
-$(BINDIR)/controller: $(SRCDIR)/controller.c $(OBJECTS) | $(BINDIR)
-	$(CC) $(CFLAGS) $< $(OBJECTS) -o $@ $(LDFLAGS)
-
-$(BINDIR)/monitor: $(SRCDIR)/monitor.c $(OBJECTS) | $(BINDIR)
+$(BINDIR)/pidfd_monitor: $(SRCDIR)/pidfd_monitor.c $(OBJECTS) | $(BINDIR)
 	$(CC) $(CFLAGS) $< $(OBJECTS) -o $@ $(LDFLAGS)
 
 clean:
@@ -83,8 +80,7 @@ install: all
 	install -d $(MANDIR_INSTALL)/man8
 
 	# Install user binaries
-	install -m 755 $(BINDIR)/controller $(BINDIR_INSTALL)/holden-controller
-	install -m 755 $(BINDIR)/monitor $(BINDIR_INSTALL)/holden-monitor
+	install -m 755 $(BINDIR)/pidfd_monitor $(BINDIR_INSTALL)/holden-pidfd-monitor
 
 	# Install system daemons to libexec (not meant for direct user execution)
 	install -m 755 $(BINDIR)/agent $(LIBEXECDIR_INSTALL)/holden-agent
@@ -149,24 +145,18 @@ help:
 	@echo "  help      - Show this help message"
 	@echo
 	@echo "Components:"
-	@echo "  agent     - Process agent (runs in container)"
-	@echo "  controller- Main controller"
-	@echo "  monitor   - Process monitor utility"
+	@echo "  agent         - Stateless process spawning agent (runs in container)"
+	@echo "  pidfd_monitor - pidfd-based monitor demonstration"
 	@echo
 	@echo "RPM Packages:"
-	@echo "  holden       - Controller and monitor"
+	@echo "  holden       - pidfd monitor utility"
 	@echo "  holden-agent - Agent daemon with systemd"
 	@echo "  holden-devel - Development headers"
 	@echo
 	@echo "Usage after build:"
-	@echo "  ./bin/agent                          # Start agent"
-	@echo "  ./bin/controller start <cmd> [args]  # Start process"
-	@echo "  ./bin/controller list                # List processes"
-	@echo "  ./bin/controller stop <pid>          # Stop process"
-	@echo "  ./bin/controller constrain <pid> <mem_mb> <cpu_%>"
-	@echo "  ./bin/monitor                        # Monitor processes"
+	@echo "  ./bin/agent                                    # Start stateless agent"
+	@echo "  ./bin/pidfd_monitor 'sleep 5' 'sleep 10'      # Demo pidfd monitoring"
 	@echo
 	@echo "After RPM install:"
-	@echo "  sudo systemctl start holden-agent   # Start agent service"
-	@echo "  holden-controller start sleep 30    # Start process"
-	@echo "  holden-monitor                       # Monitor processes"
+	@echo "  sudo systemctl start holden-agent           # Start agent service"
+	@echo "  holden-pidfd-monitor 'app1' 'app2'          # Demo pidfd monitoring"

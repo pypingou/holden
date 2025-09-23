@@ -1,0 +1,7 @@
+so I want to create a process orchestration application in C (for speed). The goal is to have a control application and an agent.
+The agent will run in a container and talk to the controller in some way (you define it).
+The controller will ask the agent to start some process (name, argument...).
+The agent will execute and return to the controller either an error or a pid of the process.
+From there the controller will ack receiving the pid (or error) and if starting the process was successful (received a pid) it will start monitoring that process.
+The controller should thus be able to: start process, list processes, stop process, apply constraints (cgroups limitations) to a running process
+Ensure this project is licensed under MIT and has an appropriate README and LICENSE file.

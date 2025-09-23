@@ -1,6 +1,6 @@
 Name:             holden
 Version:          0.1
-Release:          5%{?dist}
+Release:          6%{?dist}
 Summary:          High-performance process orchestration system
 
 License:          MIT
@@ -13,10 +13,11 @@ BuildRequires:    systemd-rpm-macros
 
 %description
 Holden is a high-performance process orchestration application written in C,
-featuring a controller-agent architecture for container-based process management.
+featuring a stateless agent architecture for container-based process management.
 Named after the 19th century puppeteer Joseph Holden, it provides precise control
-over process lifecycles. Supports Unix domain socket communication, real-time
-monitoring, and cgroups v2 resource constraints.
+over process lifecycles using pidfd-based monitoring. The agent spawns processes
+and returns pidfd references via Unix domain socket fd passing, with all process
+management delegated to the caller.
 
 %package agent
 Summary:          Holden process orchestration agent daemon
@@ -27,10 +28,11 @@ Requires(preun):  systemd
 Requires(postun): systemd
 
 %description agent
-The agent component of the Holden process orchestration system. This daemon runs
-in containers or on remote hosts to manage processes according to controller
-commands. Supports process lifecycle management, resource constraints via
-cgroups v2, and real-time monitoring.
+The stateless agent component of the Holden process orchestration system. This daemon
+runs in containers to spawn processes and return pidfd references via fd passing.
+The agent maintains no internal state - all process management is handled by the caller
+using the returned pidfds. Supports container namespace inheritance and efficient
+process spawning.
 
 %package devel
 Summary:          Development files for %{name}
@@ -84,8 +86,7 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %license %{_docdir}/%{name}/LICENSE
 %doc %{_docdir}/%{name}/README.md
 %doc %{_docdir}/%{name}/TESTING.md
-%{_bindir}/holden-controller
-%{_bindir}/holden-monitor
+%{_bindir}/holden-pidfd-monitor
 
 %files agent
 %license %{_docdir}/%{name}/LICENSE
@@ -100,6 +101,14 @@ sh ./test_quick.sh || echo "Tests require agent to be running"
 %{_includedir}/%{name}/
 
 %changelog
+* Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-6
+- Simplify agent to stateless pidfd-based process spawning
+- Remove all state management and complex process tracking from agent
+- Agent now only spawns processes and returns pidfd references via fd passing
+- Add new pidfd monitor demo showing local and agent process management
+- Remove stop/list/constraints operations (now handled by caller)
+- Remove cgroups integration (delegated to caller)
+
 * Tue Sep 23 2025 Pierre-Yves Chibon <pingou@pingoured.fr> - 0.1-5
 - Fix the container PID to host PID mapping logic
 

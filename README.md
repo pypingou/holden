@@ -1,22 +1,22 @@
 # Holden Process Orchestration System
 
-A high-performance process orchestration application written in C, featuring a controller-agent architecture for container-based process management. Named after the 19th century puppeteer Joseph Holden, it provides precise control over process lifecycles.
+A high-performance process orchestration application written in C, featuring a stateless agent architecture for container-based process management. Named after the 19th century puppeteer Joseph Holden, it provides precise control over process lifecycles using pidfd-based monitoring.
 
 ## Architecture
 
-- **Controller**: Orchestrates processes, provides CLI interface
-- **Agent**: Runs in containers, manages processes, applies constraints
-- **Monitor**: Continuously monitors process health and resource usage
-- **Communication**: Unix domain sockets for efficient IPC
-- **Constraints**: cgroups v2 for memory and CPU limits
+- **Stateless Agent**: Spawns processes in containers and returns pidfd references via fd passing
+- **pidfd Monitor**: Demonstrates pidfd-based process monitoring and restart capability
+- **Communication**: Unix domain sockets for efficient IPC with fd passing
+- **Process Management**: Caller-controlled using pidfds, no agent state
 
-## Features
+## Key Features
 
-- Start/stop processes remotely
-- Process monitoring with resource usage
-- Memory and CPU constraints via cgroups
-- Container-friendly architecture
-- Real-time process health monitoring
+- **Stateless Agent**: No internal process tracking or state management
+- **pidfd-based Monitoring**: Efficient process monitoring using Linux pidfds
+- **Container Namespace Inheritance**: Spawned processes inherit agent's container context
+- **File Descriptor Passing**: Agent returns pidfd references to caller via Unix sockets
+- **Process Restart Logic**: Automatic restart capability using pidfd polling
+- **Simplified Architecture**: Agent only spawns, caller manages everything else
 
 ## Building
 
@@ -24,58 +24,64 @@ A high-performance process orchestration application written in C, featuring a c
 make all
 ```
 
-This creates three binaries in the `bin/` directory:
-- `agent` - Process agent
-- `controller` - Main controller
-- `monitor` - Process monitor
+This creates two binaries in the `bin/` directory:
+- `agent` - Stateless process spawning agent
+- `pidfd_monitor` - pidfd-based monitor demonstration
 
 ## Usage
 
 ### 1. Start the Agent (typically in a container)
 
 ```bash
-sudo ./bin/agent
+./bin/agent
 ```
 
-The agent listens on `/tmp/process_orchestrator.sock` for controller connections.
+The agent listens on `/tmp/process_orchestrator.sock` by default. Configure with `HOLDEN_SOCKET_PATH` environment variable.
 
-### 2. Use the Controller
+### 2. Use the pidfd Monitor
 
-Start a process:
+The pidfd monitor demonstrates the intended usage pattern:
+
 ```bash
-./bin/controller start sleep 60
-./bin/controller start python3 -c "import time; time.sleep(100)"
+# Monitor local and agent-spawned processes with automatic restart
+./bin/pidfd_monitor "/bin/sleep 5" "/usr/bin/sleep 10"
 ```
 
-List running processes:
-```bash
-./bin/controller list
+This example:
+1. Spawns `/bin/sleep 5` locally using fork() and gets its pidfd
+2. Spawns `/usr/bin/sleep 10` via the agent and receives its pidfd
+3. Monitors both processes using poll() on their pidfds
+4. Automatically restarts processes when they die
+
+
+## Agent Architecture
+
+The simplified agent:
+
+1. **Takes command line from caller**
+2. **Spawns process** (inherits container/qm context)
+3. **Calls pidfd_open()** to get process reference
+4. **Returns pidfd via fd passing** over Unix socket
+5. **Maintains no state** - all management delegated to caller
+
+```c
+// Agent workflow:
+pid_t pid = fork();
+// ... child execs command ...
+int pidfd = pidfd_open(pid, 0);
+send_fd(socket, pidfd);  // Send pidfd to caller
+close(pidfd);            // Agent doesn't keep it
 ```
 
-Stop a process:
-```bash
-./bin/controller stop <pid>
-```
+## Process Management Philosophy
 
-Apply resource constraints:
-```bash
-# Limit to 100MB memory, 50% CPU
-./bin/controller constrain <pid> 100 50
-```
+With the new architecture:
 
-Show monitored processes:
-```bash
-./bin/controller monitor
-```
-
-### 3. Monitor Processes
-
-Start the continuous monitor:
-```bash
-./bin/monitor
-```
-
-This provides real-time monitoring with CPU and memory usage statistics.
+- **Agent**: Stateless process spawner only
+- **Caller**: Receives pidfds and manages processes directly
+- **No Agent State**: No process tracking, lists, or management in agent
+- **pidfd Control**: Caller uses pidfds for stop, monitor, wait operations
+- **Container Context**: Spawned processes inherit agent's namespace/cgroup context
 
 ## Container Usage
 
@@ -85,58 +91,64 @@ This provides real-time monitoring with CPU and memory usage statistics.
 FROM alpine:latest
 RUN apk add --no-cache libc6-compat
 COPY bin/agent /usr/local/bin/
-VOLUME ["/tmp"]
 CMD ["/usr/local/bin/agent"]
 ```
 
-### Running with Podman
+### Running with Container Orchestration
 
 ```bash
-# Build and run agent container
-podman build -t holden-agent .
+# Agent provides qm/container context to spawned processes
 podman run -d --name holden-agent \
-  --privileged \
-  -v /tmp:/tmp \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+  -v /run/holden:/run/holden \
   holden-agent
 
-# Use controller from host
-./bin/controller start sleep 30
-./bin/controller list
+# Use pidfd monitor to spawn and manage processes
+./bin/pidfd_monitor "your-app --config=prod" "monitoring-daemon"
 ```
 
 ## Requirements
 
-- Linux with cgroups v2 support
-- Root privileges for cgroups operations
+- Linux with pidfd support (kernel 5.3+)
+- Container environment for agent (optional)
 - GCC with C99 support
 
 ## File Structure
 
-- `protocol.h/c` - Communication protocol
-- `agent.c` - Process agent
-- `controller.c` - Main controller
-- `monitor.c` - Process monitor
-- `cgroups.h/c` - cgroups v2 integration
+- `protocol.h/c` - Communication protocol definitions
+- `agent.c` - Stateless process spawning agent
+- `pidfd_monitor.c` - pidfd-based monitor demonstration
+- `cgroups.h/c` - cgroups integration (unused by agent)
 - `Makefile` - Build system
 
 ## Protocol
 
-The system uses a binary message protocol over Unix domain sockets:
+The agent supports:
 
-- `START_PROCESS` - Start a new process
-- `PROCESS_STARTED` - Process started successfully (returns PID)
-- `PROCESS_ERROR` - Error occurred
-- `LIST_PROCESSES` - List running processes
-- `STOP_PROCESS` - Stop a process
-- `APPLY_CONSTRAINTS` - Apply resource limits
+- `MSG_START_PROCESS` - Spawn process and return pidfd via fd passing
+- `MSG_PING` - Health check
+
+Removed operations (handled by caller):
+- ~~`LIST_PROCESSES`~~ - No agent state to list
+- ~~`STOP_PROCESS`~~ - Caller uses pidfd directly
+- ~~`APPLY_CONSTRAINTS`~~ - Caller applies via pidfd
+
+## Usage Philosophy
+
+**Simple Model**: Agent spawns, caller manages via pidfd
+```bash
+pidfd_monitor app1 app2  # Agent spawns, returns pidfds
+# Caller polls pidfds, handles restart, stop, etc.
+```
+
+The agent is a pure process spawner - all management is handled by the caller using the returned pidfds.
 
 ## Security
 
 - Unix domain sockets provide secure local communication
-- cgroups provide process isolation
+- File descriptor passing for pidfd security
 - No network exposure by default
-- Designed for container environments
+- Container namespace inheritance
+- No agent state to compromise
 
 ## License
 
