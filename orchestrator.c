@@ -285,7 +285,9 @@ int main(int argc, char *argv[]) {
 
         // Check if local process died
         if (fds[0].revents & POLLIN) {
-            printf("[%s] Local process died, restarting...\n", ctime(&now));
+            char *time_str = ctime(&now);
+            time_str[strlen(time_str) - 1] = '\0'; // Remove newline
+            printf("[%s] Local process died, restarting...\n", time_str);
             close(local_pidfd);
             local_pidfd = spawn_local_process(local_args[0], local_args);
             if (local_pidfd == -1) {
@@ -297,7 +299,9 @@ int main(int argc, char *argv[]) {
 
         // Check if agent process died
         if (fds[1].revents & POLLIN) {
-            printf("[%s] Agent process died, restarting...\n", ctime(&now));
+            char *time_str = ctime(&now);
+            time_str[strlen(time_str) - 1] = '\0'; // Remove newline
+            printf("[%s] Agent process died, restarting...\n", time_str);
             close(agent_pidfd);
             agent_pidfd = spawn_agent_process(agent_args[0], agent_args);
             if (agent_pidfd == -1) {

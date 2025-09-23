@@ -94,33 +94,52 @@ int start_process(int sockfd, const start_process_msg_t *req, message_t *respons
         return 0;
     }
 
-    // Send the pidfd back to caller via fd passing
-    if (send_fd(sockfd, pidfd) == -1) {
-        close(pidfd);
-        response->header.type = MSG_PROCESS_ERROR;
-        response->header.length = sizeof(process_error_msg_t);
-        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
-                "Failed to send pidfd: %s", strerror(errno));
-        return 0;
-    }
-
-    close(pidfd); // We've passed it, don't need our copy
-
+    // Prepare success response first
     response->header.type = MSG_PROCESS_STARTED;
     response->header.length = sizeof(process_started_msg_t);
     response->data.process_started.host_pid = pid;
     response->data.process_started.container_pid = pid;
 
-    return 0;
+    // Send the response first
+    if (send_message(sockfd, response) == -1) {
+        close(pidfd);
+        response->header.type = MSG_PROCESS_ERROR;
+        response->header.length = sizeof(process_error_msg_t);
+        snprintf(response->data.process_error.error, MAX_ERROR_MSG,
+                "Failed to send response: %s", strerror(errno));
+        return 0;
+    }
+
+    // Then send the pidfd via fd passing
+    if (send_fd(sockfd, pidfd) == -1) {
+        close(pidfd);
+        // Can't send error response now since we already sent success
+        // The orchestrator will get an error when trying to recv_fd
+        return -1;
+    }
+
+    close(pidfd); // We've passed it, don't need our copy
+
+    // Return 1 to indicate we already sent the response
+    return 1;
 }
 
 int handle_message(int sockfd, const message_t *request) {
     message_t response = {0};
 
     switch (request->header.type) {
-        case MSG_START_PROCESS:
-            start_process(sockfd, &request->data.start_process, &response);
+        case MSG_START_PROCESS: {
+            int result = start_process(sockfd, &request->data.start_process, &response);
+            if (result == 1) {
+                // start_process already sent the response, don't send again
+                return 0;
+            } else if (result == -1) {
+                // Error occurred after response was sent
+                return -1;
+            }
+            // result == 0: error response prepared, send it below
             break;
+        }
 
         case MSG_PING:
             response.header.type = MSG_PONG;
