@@ -23,6 +23,7 @@ typedef struct {
 
 static process_info_t processes[MAX_PROCESSES];
 static int process_count = 0;
+static const char *current_socket_path = NULL;
 
 void add_process(pid_t pid, const char *name) {
     if (process_count < MAX_PROCESSES) {
@@ -217,12 +218,15 @@ int handle_message(int sockfd, const message_t *request) {
 }
 
 void cleanup_socket() {
-    unlink(SOCKET_PATH);
+    if (current_socket_path) {
+        unlink(current_socket_path);
+    }
 }
 
 int main() {
     int sockfd, clientfd;
     struct sockaddr_un addr;
+    const char *socket_path;
 
     signal(SIGPIPE, SIG_IGN);
     atexit(cleanup_socket);
@@ -230,6 +234,13 @@ int main() {
     if (init_cgroups() == -1) {
         fprintf(stderr, "Warning: Failed to initialize cgroups, constraints will not work\n");
     }
+
+    // Allow socket path to be configured via environment variable
+    socket_path = getenv("HOLDEN_SOCKET_PATH");
+    if (socket_path == NULL) {
+        socket_path = SOCKET_PATH;  // Fall back to default
+    }
+    current_socket_path = socket_path;
 
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd == -1) {
@@ -239,9 +250,9 @@ int main() {
 
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, SOCKET_PATH, sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
 
-    unlink(SOCKET_PATH);
+    unlink(socket_path);
 
     if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         perror("bind");
@@ -253,7 +264,7 @@ int main() {
         exit(1);
     }
 
-    printf("Agent listening on %s\n", SOCKET_PATH);
+    printf("Agent listening on %s\n", socket_path);
 
     while (1) {
         clientfd = accept(sockfd, NULL, NULL);
