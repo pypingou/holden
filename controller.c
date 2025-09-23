@@ -233,13 +233,27 @@ int apply_constraints_cmd(pid_t pid, uint64_t memory_limit, uint64_t cpu_limit) 
 }
 
 void print_usage(const char *prog_name) {
+    printf("Holden Process Orchestration Controller\n");
+    printf("Named after 19th century puppeteer Joseph Holden\n");
+    printf("\n");
     printf("Usage: %s <command> [args...]\n", prog_name);
+    printf("       %s --help|-h\n", prog_name);
+    printf("\n");
     printf("Commands:\n");
-    printf("  start <name> [args...]     - Start a process\n");
-    printf("  list                       - List running processes\n");
-    printf("  stop <pid>                 - Stop a process\n");
-    printf("  constrain <pid> <mem> <cpu> - Apply constraints (mem in MB, cpu in %%)\n");
-    printf("  monitor                    - Show monitored processes\n");
+    printf("  start <name> [args...]       - Start a process\n");
+    printf("  list                         - List running processes\n");
+    printf("  stop <pid>                   - Stop a process\n");
+    printf("  constrain <pid> <mem> <cpu>  - Apply constraints (mem in MB, cpu in %%)\n");
+    printf("  monitor                      - Show monitored processes\n");
+    printf("\n");
+    printf("Environment Variables:\n");
+    printf("  HOLDEN_SOCKET_PATH          - Path to agent socket (default: %s)\n", SOCKET_PATH);
+    printf("\n");
+    printf("Examples:\n");
+    printf("  %s start sleep 30           - Start sleep command for 30 seconds\n", prog_name);
+    printf("  %s list                     - Show all running processes\n", prog_name);
+    printf("  %s stop 1234                - Stop process with PID 1234\n", prog_name);
+    printf("  %s constrain 1234 512 50    - Limit process to 512MB RAM, 50%% CPU\n", prog_name);
 }
 
 void show_monitored_processes() {
@@ -286,6 +300,12 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
+    }
+
+    // Handle --help or -h
+    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+        print_usage(argv[0]);
+        return 0;
     }
 
     if (strcmp(argv[1], "start") == 0) {

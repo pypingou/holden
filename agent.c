@@ -250,7 +250,34 @@ void cleanup_socket() {
     }
 }
 
-int main() {
+void print_agent_usage(const char *prog_name) {
+    printf("Holden Process Orchestration Agent\n");
+    printf("Named after 19th century puppeteer Joseph Holden\n");
+    printf("\n");
+    printf("Usage: %s [--help|-h]\n", prog_name);
+    printf("\n");
+    printf("The agent runs as a daemon and manages processes on behalf of controllers.\n");
+    printf("It listens on a Unix domain socket for commands from holden-controller.\n");
+    printf("\n");
+    printf("Environment Variables:\n");
+    printf("  HOLDEN_SOCKET_PATH    - Path to agent socket (default: %s)\n", SOCKET_PATH);
+    printf("\n");
+    printf("Features:\n");
+    printf("  - Process lifecycle management (start/stop/list)\n");
+    printf("  - Resource constraints via cgroups v2\n");
+    printf("  - Real-time process monitoring\n");
+    printf("  - Unix domain socket communication\n");
+    printf("\n");
+    printf("Typically started via systemd: systemctl start holden-agent\n");
+}
+
+int main(int argc, char *argv[]) {
+    // Handle --help or -h
+    if (argc > 1 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
+        print_agent_usage(argv[0]);
+        return 0;
+    }
+
     int sockfd, clientfd;
     struct sockaddr_un addr;
     const char *socket_path;

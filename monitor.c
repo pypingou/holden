@@ -171,7 +171,38 @@ void monitor_processes() {
     }
 }
 
-int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused))) {
+void print_monitor_usage(const char *prog_name) {
+    printf("Holden Process Monitor\n");
+    printf("Named after 19th century puppeteer Joseph Holden\n");
+    printf("\n");
+    printf("Usage: %s [--help|-h]\n", prog_name);
+    printf("\n");
+    printf("Continuously monitors processes managed by the Holden agent.\n");
+    printf("Displays real-time information about process status, CPU usage, and memory consumption.\n");
+    printf("\n");
+    printf("Environment Variables:\n");
+    printf("  HOLDEN_SOCKET_PATH    - Path to agent socket (default: %s)\n", SOCKET_PATH);
+    printf("\n");
+    printf("Features:\n");
+    printf("  - Real-time process status monitoring\n");
+    printf("  - CPU time tracking (user/system)\n");
+    printf("  - Memory usage statistics (RSS)\n");
+    printf("  - Automatic reconnection to agent\n");
+    printf("  - Timestamped reports every 10 seconds\n");
+    printf("\n");
+    printf("Control:\n");
+    printf("  Press Ctrl+C to stop monitoring\n");
+    printf("\n");
+    printf("Note: The agent must be running for monitoring to work.\n");
+}
+
+int main(int argc, char *argv[]) {
+    // Handle --help or -h
+    if (argc > 1 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
+        print_monitor_usage(argv[0]);
+        return 0;
+    }
+
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
